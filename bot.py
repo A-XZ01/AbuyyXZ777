@@ -328,6 +328,10 @@ class CreateTicketButton(discord.ui.View):
 
 class MiddlemanModal(discord.ui.Modal, title="🤝 Create Middleman Ticket"):
     """Modal untuk input middleman transaction details"""
+    def __init__(self, fee_payer: str = 'buyer'):
+        super().__init__()
+        self.fee_payer = fee_payer  # 'buyer', 'seller', or 'split'
+    
     buyer_username = discord.ui.TextInput(
         label="Username Buyer (in-game)",
         placeholder="Contoh: BuyerXYZ123",
@@ -387,8 +391,31 @@ class MiddlemanModal(discord.ui.Modal, title="🤝 Create Middleman Ticket"):
         # Calculate middleman fee
         mm_fee = calculate_mm_fee(deal_price)
         
-        # Total yang harus dibayar buyer (deal_price + mm_fee)
-        total_payment = deal_price + mm_fee
+        # Validate split fee (only for >5M)
+        if self.fee_payer == 'split' and deal_price < 5000000:
+            await interaction.followup.send(
+                "❌ **Split Fee hanya tersedia untuk transaksi di atas Rp5.000.000!**\n"
+                f"Harga deal Anda: Rp{deal_price:,}\n\n"
+                "Silakan pilih opsi **Buyer Pays** atau **Seller Pays**.",
+                ephemeral=True
+            )
+            return
+        
+        # Calculate payments based on fee_payer
+        if self.fee_payer == 'buyer':
+            total_payment = deal_price + mm_fee  # Buyer pays deal + full fee
+            seller_receives = deal_price  # Seller gets full deal price
+            fee_info = f"**Fee dibayar:** Buyer (Rp{mm_fee:,})"
+        elif self.fee_payer == 'seller':
+            total_payment = deal_price  # Buyer only pays deal price
+            seller_receives = deal_price - mm_fee  # Seller gets deal - fee
+            fee_info = f"**Fee dibayar:** Seller (Rp{mm_fee:,})"
+        else:  # split (50:50)
+            split_fee = mm_fee // 2
+            remaining_fee = mm_fee - split_fee  # Handle odd numbers
+            total_payment = deal_price + split_fee  # Buyer pays deal + half fee
+            seller_receives = deal_price - remaining_fee  # Seller gets deal - half fee
+            fee_info = f"**Fee split 50:50:** Buyer Rp{split_fee:,} + Seller Rp{remaining_fee:,}"
         
         # Cek apakah user sudah punya ticket aktif
         existing_ticket = db.get_open_ticket(interaction.guild.id, interaction.user.id)
@@ -480,7 +507,8 @@ class MiddlemanModal(discord.ui.Modal, title="🤝 Create Middleman Ticket"):
                 seller_username=seller_username,
                 item_description=item_desc,
                 deal_price=deal_price,
-                mm_fee=mm_fee
+                mm_fee=mm_fee,
+                fee_payer=self.fee_payer
             )
             
             if not ticket_id:
@@ -538,8 +566,10 @@ class MiddlemanModal(discord.ui.Modal, title="🤝 Create Middleman Ticket"):
                 value=(
                     f"**Harga Deal:** Rp{deal_price:,}\n"
                     f"**Fee Middleman:** Rp{mm_fee:,}\n"
+                    f"{fee_info}\n"
                     f"━━━━━━━━━━━━━━━\n"
-                    f"**Total Bayar:** **Rp{total_payment:,}**"
+                    f"**Buyer Transfer:** **Rp{total_payment:,}**\n"
+                    f"**Seller Terima:** **Rp{seller_receives:,}**"
                 ),
                 inline=False
             )
@@ -611,11 +641,22 @@ class MiddlemanModal(discord.ui.Modal, title="🤝 Create Middleman Ticket"):
             
             await channel.send(embed=welcome_embed)
             
-            # Notify user
+            # Notify user dengan info fee yang benar
+            if self.fee_payer == 'buyer':
+                fee_note = f"Fee ditanggung Buyer (Rp{mm_fee:,})"
+            elif self.fee_payer == 'seller':
+                fee_note = f"Fee ditanggung Seller (Rp{mm_fee:,})"
+            else:
+                split_fee = mm_fee // 2
+                remaining_fee = mm_fee - split_fee
+                fee_note = f"Fee split 50:50 (Buyer: Rp{split_fee:,}, Seller: Rp{remaining_fee:,})"
+            
             await interaction.followup.send(
                 f"✅ Middleman ticket berhasil dibuat!\n\n"
                 f"🤝 **Ticket:** {channel.mention}\n"
-                f"💰 **Total Bayar:** Rp{total_payment:,} (Harga Rp{deal_price:,} + Fee Rp{mm_fee:,})\n\n"
+                f"💰 **Buyer Transfer:** Rp{total_payment:,}\n"
+                f"💰 **Seller Terima:** Rp{seller_receives:,}\n"
+                f"📊 **{fee_note}**\n\n"
                 f"Silakan buka channel ticket dan transfer ke rekening middleman!",
                 ephemeral=True
             )
@@ -641,6 +682,42 @@ class MiddlemanModal(discord.ui.Modal, title="🤝 Create Middleman Ticket"):
             )
 
 
+class FeePayerSelectView(discord.ui.View):
+    """View dengan dropdown untuk pilih siapa yang bayar fee"""
+    def __init__(self):
+        super().__init__(timeout=180)  # 3 menit timeout
+    
+    @discord.ui.select(
+        placeholder="📊 Pilih siapa yang bayar fee middleman...",
+        options=[
+            discord.SelectOption(
+                label="Buyer Pays Full Fee",
+                value="buyer",
+                description="Buyer bayar harga + fee penuh",
+                emoji="🔵"
+            ),
+            discord.SelectOption(
+                label="Seller Pays Full Fee",
+                value="seller",
+                description="Seller terima harga - fee penuh",
+                emoji="🟢"
+            ),
+            discord.SelectOption(
+                label="Split Fee 50:50 (Hanya >5 Juta)",
+                value="split",
+                description="Fee dibagi 50:50 antara buyer & seller",
+                emoji="🟡"
+            )
+        ]
+    )
+    async def select_fee_payer(self, interaction: discord.Interaction, select: discord.ui.Select):
+        fee_payer = select.values[0]
+        
+        # Show modal dengan fee_payer yang dipilih
+        modal = MiddlemanModal(fee_payer=fee_payer)
+        await interaction.response.send_modal(modal)
+
+
 class CreateMiddlemanButton(discord.ui.View):
     """Persistent button untuk create middleman ticket"""
     def __init__(self):
@@ -653,9 +730,30 @@ class CreateMiddlemanButton(discord.ui.View):
         custom_id="create_mm_ticket_button"
     )
     async def create_mm_ticket(self, interaction: discord.Interaction, button: discord.ui.Button):
-        """Handle button click to open middleman modal"""
-        modal = MiddlemanModal()
-        await interaction.response.send_modal(modal)
+        """Handle button click to show fee payer selection"""
+        # Show fee payer select menu
+        view = FeePayerSelectView()
+        
+        embed = discord.Embed(
+            title="🤝 Middleman Ticket - Fee Payment",
+            description=(
+                "Selamat datang di layanan Middleman!\n\n"
+                "Silakan pilih **siapa yang akan membayar fee middleman**:\n\n"
+                "🔵 **Buyer Pays** - Buyer bayar harga deal + fee penuh\n"
+                "🟢 **Seller Pays** - Seller terima harga deal - fee\n"
+                "🟡 **Split 50:50** - Fee dibagi rata (hanya untuk >Rp5.000.000)\n\n"
+                "**Fee Structure:**\n"
+                "• <50K: Gratis\n"
+                "• 50K-500K: Rp2.000\n"
+                "• 500K-1Juta: Rp5.000\n"
+                "• 1Juta-5Juta: Rp7.000\n"
+                "• 5Juta-10Juta: Rp10.000\n"
+                "• 10Juta+: Rp15.000"
+            ),
+            color=0xFF9900
+        )
+        
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
 
 def calculate_mm_fee(deal_price: int) -> int:
@@ -665,7 +763,7 @@ def calculate_mm_fee(deal_price: int) -> int:
     - <50K: Gratis (Rp0)
     - 50K-500K: Rp2.000
     - 500K-1Juta: Rp5.000
-    - 1Juta-5Juta: Rp7.500
+    - 1Juta-5Juta: Rp7.000 (UPDATED)
     - 5Juta-10Juta: Rp10.000
     - 10Juta+: Rp15.000
     """
@@ -676,7 +774,7 @@ def calculate_mm_fee(deal_price: int) -> int:
     elif deal_price < 1000000:
         return 5000
     elif deal_price < 5000000:
-        return 7500
+        return 7000  # UPDATED: dari 7500 → 7000
     elif deal_price < 10000000:
         return 10000
     else:
@@ -4938,9 +5036,23 @@ async def approve_mm(interaction: discord.Interaction):
         mm_fee = ticket.get('mm_fee', 0)
         buyer_id = ticket['user_id']
         seller_username = ticket.get('seller_username', 'Unknown Seller')
+        fee_payer = ticket.get('fee_payer', 'buyer')
         
-        # Calculate payout to seller (deal_price - fee sudah dibayar buyer)
-        seller_payout = deal_price
+        # Calculate payout based on fee_payer
+        if fee_payer == 'buyer':
+            # Buyer paid deal + fee, seller gets full deal price
+            seller_payout = deal_price
+            buyer_paid = deal_price + mm_fee
+        elif fee_payer == 'seller':
+            # Buyer paid only deal price, seller gets deal - fee
+            seller_payout = deal_price - mm_fee
+            buyer_paid = deal_price
+        else:  # split
+            # Buyer paid deal + half fee, seller gets deal - half fee
+            split_fee = mm_fee // 2
+            remaining_fee = mm_fee - split_fee
+            seller_payout = deal_price - remaining_fee
+            buyer_paid = deal_price + split_fee
         
         # Close ticket
         db.close_ticket(ticket['id'], interaction.user.id)
@@ -4969,7 +5081,8 @@ async def approve_mm(interaction: discord.Interaction):
             value=(
                 f"**Item:** {ticket.get('item_description', 'N/A')}\n"
                 f"**Harga Deal:** Rp{deal_price:,}\n"
-                f"**Fee Middleman:** Rp{mm_fee:,}"
+                f"**Fee Middleman:** Rp{mm_fee:,}\n"
+                f"**Fee dibayar:** {fee_payer.title()}"
             ),
             inline=False
         )
@@ -4995,7 +5108,8 @@ async def approve_mm(interaction: discord.Interaction):
         completion_embed.add_field(
             name="💰 Payout Info",
             value=(
-                f"**Seller akan menerima:** Rp{seller_payout:,}\n"
+                f"**Buyer bayar:** Rp{buyer_paid:,}\n"
+                f"**Seller terima:** Rp{seller_payout:,}\n"
                 f"**Fee Middleman:** Rp{mm_fee:,}\n\n"
                 f"*Admin: Transfer Rp{seller_payout:,} ke seller*"
             ),

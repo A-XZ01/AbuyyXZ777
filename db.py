@@ -226,6 +226,7 @@ class BotDatabase:
             cursor.execute("ALTER TABLE tickets ADD COLUMN mm_status TEXT")
             cursor.execute("ALTER TABLE tickets ADD COLUMN seller_proof_url TEXT")
             cursor.execute("ALTER TABLE tickets ADD COLUMN transfer_signature TEXT")
+            cursor.execute("ALTER TABLE tickets ADD COLUMN fee_payer TEXT DEFAULT 'buyer'")
             print("✅ Kolom middleman system berhasil ditambahkan ke tickets")
         except sqlite3.OperationalError as e:
             # Kolom sudah ada, skip
@@ -603,7 +604,8 @@ class BotDatabase:
     
     def create_ticket(self, guild_id: int, user_id: int, channel_id: int, game_username: str = None, 
                      ticket_type: str = 'purchase', seller_id: str = None, seller_username: str = None,
-                     item_description: str = None, deal_price: int = None, mm_fee: int = 0) -> int:
+                     item_description: str = None, deal_price: int = None, mm_fee: int = 0, 
+                     fee_payer: str = 'buyer') -> int:
         """Buat ticket baru (purchase atau middleman), return ticket_id"""
         conn = None
         try:
@@ -624,12 +626,12 @@ class BotDatabase:
                 INSERT INTO tickets (
                     guild_id, user_id, channel_id, ticket_number, game_username, status,
                     ticket_type, seller_id, seller_username, item_description, 
-                    deal_price, mm_fee, mm_status
+                    deal_price, mm_fee, mm_status, fee_payer
                 )
-                VALUES (?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, ?, ?)
             """, (str(guild_id), str(user_id), str(channel_id), next_number, game_username,
                   ticket_type, seller_id, seller_username, item_description, 
-                  deal_price, mm_fee, mm_status))
+                  deal_price, mm_fee, mm_status, fee_payer))
             
             ticket_id = cursor.lastrowid
             conn.commit()
@@ -673,7 +675,7 @@ class BotDatabase:
         cursor.execute("""
             SELECT id, guild_id, user_id, ticket_number, game_username, status, created_at,
                    ticket_type, seller_id, seller_username, item_description, deal_price, 
-                   mm_fee, mm_status, seller_proof_url
+                   mm_fee, mm_status, seller_proof_url, fee_payer
             FROM tickets
             WHERE channel_id = ?
         """, (str(channel_id),))
@@ -698,7 +700,8 @@ class BotDatabase:
             'deal_price': row[11],
             'mm_fee': row[12] or 0,
             'mm_status': row[13],
-            'seller_proof_url': row[14]
+            'seller_proof_url': row[14],
+            'fee_payer': row[15] or 'buyer'
         }
     
     def add_item_to_ticket(self, ticket_id: int, item_name: str, amount: int):
