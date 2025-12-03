@@ -1253,9 +1253,9 @@ class MyClient(discord.Client):
         """Wait until bot is ready"""
         await self.wait_until_ready()
     
-    @tasks.loop(minutes=30)
+    @tasks.loop(hours=2)
     async def auto_update_leaderboard(self):
-        """Auto-update leaderboard di #lb-rich-daily setiap 30 menit"""
+        """Auto-update leaderboard di #lb-rich-daily setiap 2 jam"""
         try:
             for guild in self.guilds:
                 # Cek apakah ada message leaderboard yang tersimpan
@@ -1468,7 +1468,7 @@ class MyClient(discord.Client):
         # Footer dengan info reset
         next_monday = week_start_dt + timedelta(days=7)
         days_until_reset = (next_monday - dt.now()).days
-        footer_text = f"🔄 Auto-update setiap 30 menit • Reset: {days_until_reset} hari lagi"
+        footer_text = f"🔄 Auto-update setiap 2 jam • Reset: {days_until_reset} hari lagi"
         
         embed.set_footer(text=footer_text, icon_url=guild.icon.url if guild.icon else None)
         
@@ -2579,8 +2579,9 @@ async def stats_command(interaction: discord.Interaction, user: Optional[discord
     # Ambil stats dari database
     stats = db.get_user_stats(interaction.guild.id, target_user.id)
     if not stats:
-        await interaction.response.send_message(f"❌ Data statistik untuk **{target_user.display_name}** tidak ditemukan dalam database.", ephemeral=True)
-        return
+        # User belum ada data, buat entry baru dengan nilai 0
+        db.update_user_stats(interaction.guild.id, target_user.id, 0)
+        stats = {'deals_completed': 0, 'total_idr_value': 0}
 
     deals = stats.get('deals_completed', 0)
     idr_value = stats.get('total_idr_value', 0)
@@ -4200,7 +4201,7 @@ async def set_price(interaction: discord.Interaction, item: app_commands.Choice[
 # --- Slash Command: /setup-leaderboard ---
 @client.tree.command(
     name="setup-leaderboard",
-    description="[OWNER] Setup message leaderboard di channel #lb-rich-daily yang akan auto-update setiap 30 menit."
+    description="[OWNER] Setup message leaderboard di channel #lb-rich-daily yang akan auto-update setiap 2 jam."
 )
 @owner_only()
 async def setup_leaderboard(interaction: discord.Interaction):
@@ -4243,7 +4244,7 @@ async def setup_leaderboard(interaction: discord.Interaction):
         
         await interaction.followup.send(
             f"✅ Leaderboard berhasil di-setup di {lb_channel.mention}!\n"
-            f"🔄 Message akan auto-update setiap 30 menit.\n"
+            f"🔄 Message akan auto-update setiap 2 jam.\n"
             f"📊 Message ID: `{message.id}`",
             ephemeral=True
         )
