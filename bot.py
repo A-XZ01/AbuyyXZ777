@@ -324,6 +324,365 @@ class CreateTicketButton(discord.ui.View):
         await interaction.response.send_modal(modal)
 
 
+# --- Middleman Ticket System ---
+
+class MiddlemanModal(discord.ui.Modal, title="🤝 Create Middleman Ticket"):
+    """Modal untuk input middleman transaction details"""
+    buyer_username = discord.ui.TextInput(
+        label="Username Buyer (in-game)",
+        placeholder="Contoh: BuyerXYZ123",
+        min_length=3,
+        max_length=50,
+        required=True,
+        style=discord.TextStyle.short
+    )
+    
+    seller_username = discord.ui.TextInput(
+        label="Username/ID Seller",
+        placeholder="Contoh: @seller atau SellerABC456",
+        min_length=3,
+        max_length=100,
+        required=True,
+        style=discord.TextStyle.short
+    )
+    
+    item_description = discord.ui.TextInput(
+        label="Item/Jasa",
+        placeholder="Contoh: Akun Level 80 + 1000 Diamonds",
+        min_length=5,
+        max_length=200,
+        required=True,
+        style=discord.TextStyle.paragraph
+    )
+    
+    deal_price = discord.ui.TextInput(
+        label="Harga Deal (Rupiah, angka saja)",
+        placeholder="Contoh: 250000",
+        min_length=3,
+        max_length=10,
+        required=True,
+        style=discord.TextStyle.short
+    )
+    
+    async def on_submit(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+        
+        buyer_username = self.buyer_username.value.strip()
+        seller_username = self.seller_username.value.strip()
+        item_desc = self.item_description.value.strip()
+        
+        # Validasi harga
+        try:
+            deal_price = int(self.deal_price.value.strip().replace(".", "").replace(",", ""))
+            if deal_price < 1000:
+                await interaction.followup.send("❌ Harga minimal Rp1.000!", ephemeral=True)
+                return
+            if deal_price > 100000000:
+                await interaction.followup.send("❌ Harga maksimal Rp100.000.000!", ephemeral=True)
+                return
+        except ValueError:
+            await interaction.followup.send("❌ Harga harus berupa angka yang valid!", ephemeral=True)
+            return
+        
+        # Calculate middleman fee
+        mm_fee = calculate_mm_fee(deal_price)
+        
+        # Total yang harus dibayar buyer (deal_price + mm_fee)
+        total_payment = deal_price + mm_fee
+        
+        # Cek apakah user sudah punya ticket aktif
+        existing_ticket = db.get_open_ticket(interaction.guild.id, interaction.user.id)
+        if existing_ticket:
+            channel = interaction.guild.get_channel(int(existing_ticket['channel_id']))
+            if channel:
+                await interaction.followup.send(
+                    f"❌ Anda sudah punya ticket aktif: {channel.mention}\n"
+                    f"Gunakan `/close` untuk tutup ticket lama sebelum buat ticket baru.",
+                    ephemeral=True
+                )
+                return
+            else:
+                db.close_ticket(existing_ticket['id'], interaction.user.id)
+        
+        # Cari atau buat kategori TICKET MIDDLEMAN
+        category = discord.utils.get(interaction.guild.categories, name="TICKET MIDDLEMAN")
+        if not category:
+            try:
+                category = await interaction.guild.create_category(name="TICKET MIDDLEMAN")
+            except discord.Forbidden:
+                await interaction.followup.send(
+                    "❌ Bot tidak punya permission untuk membuat kategori.\n"
+                    "Enable `Manage Channels` permission untuk bot role.",
+                    ephemeral=True
+                )
+                return
+        
+        # Buat ticket channel
+        try:
+            # Permission: buyer, seller (jika mention), dan admins
+            overwrites = {
+                interaction.guild.default_role: discord.PermissionOverwrite(read_messages=False),
+                interaction.user: discord.PermissionOverwrite(
+                    read_messages=True,
+                    send_messages=True,
+                    attach_files=True
+                ),
+                interaction.guild.me: discord.PermissionOverwrite(
+                    read_messages=True,
+                    send_messages=True,
+                    manage_channels=True,
+                    manage_messages=True
+                )
+            }
+            
+            # Add admin role permissions
+            guild_config = db.get_guild_config(interaction.guild.id)
+            admin_roles = guild_config.get('admin_roles', [])
+            for role_id in admin_roles:
+                role = interaction.guild.get_role(int(role_id))
+                if role:
+                    overwrites[role] = discord.PermissionOverwrite(
+                        read_messages=True,
+                        send_messages=True,
+                        manage_messages=True
+                    )
+            
+            # Extract seller ID jika mention
+            seller_id = None
+            if seller_username.startswith('<@') and seller_username.endswith('>'):
+                seller_id = seller_username.strip('<@!>').strip('<@>')
+                try:
+                    seller_member = await interaction.guild.fetch_member(int(seller_id))
+                    overwrites[seller_member] = discord.PermissionOverwrite(
+                        read_messages=True,
+                        send_messages=True,
+                        attach_files=True
+                    )
+                except:
+                    pass
+            
+            # Create channel
+            channel = await interaction.guild.create_text_channel(
+                name=f"mm-{interaction.user.name}",
+                category=category,
+                overwrites=overwrites,
+                topic=f"Middleman Ticket - Buyer: {interaction.user.name} - Seller: {seller_username}"
+            )
+            
+            # Save to database
+            ticket_id = db.create_ticket(
+                guild_id=interaction.guild.id,
+                user_id=interaction.user.id,
+                channel_id=channel.id,
+                game_username=buyer_username,
+                ticket_type='middleman',
+                seller_id=seller_id,
+                seller_username=seller_username,
+                item_description=item_desc,
+                deal_price=deal_price,
+                mm_fee=mm_fee
+            )
+            
+            if not ticket_id:
+                await channel.delete()
+                await interaction.followup.send(
+                    "❌ Gagal membuat ticket di database. Coba lagi.",
+                    ephemeral=True
+                )
+                return
+            
+            # Get ticket info
+            ticket_info = db.get_ticket_by_channel(channel.id)
+            ticket_number = ticket_info['ticket_number'] if ticket_info else 0
+            
+            # Rename channel dengan ticket number
+            await channel.edit(
+                name=f"mm-{ticket_number:04d}-{interaction.user.name}",
+                topic=f"Middleman Ticket #{ticket_number:04d} - {interaction.user.name} ↔ {seller_username}"
+            )
+            
+            # Welcome embed untuk middleman
+            welcome_embed = discord.Embed(
+                title=f"🤝 Middleman Ticket #{ticket_number:04d}",
+                description=f"Selamat datang di layanan Middleman!\n\nTicket ini akan memfasilitasi transaksi antara buyer dan seller dengan aman.",
+                color=0xFF9900,  # Orange untuk middleman
+                timestamp=datetime.now()
+            )
+            
+            welcome_embed.add_field(
+                name="👤 Buyer",
+                value=f"{interaction.user.mention}\nUsername: `{buyer_username}`",
+                inline=True
+            )
+            
+            welcome_embed.add_field(
+                name="👤 Seller",
+                value=f"`{seller_username}`",
+                inline=True
+            )
+            
+            welcome_embed.add_field(
+                name="\u200b",
+                value="\u200b",
+                inline=True
+            )
+            
+            welcome_embed.add_field(
+                name="📦 Item/Jasa",
+                value=f"`{item_desc}`",
+                inline=False
+            )
+            
+            welcome_embed.add_field(
+                name="💰 Detail Pembayaran",
+                value=(
+                    f"**Harga Deal:** Rp{deal_price:,}\n"
+                    f"**Fee Middleman:** Rp{mm_fee:,}\n"
+                    f"━━━━━━━━━━━━━━━\n"
+                    f"**Total Bayar:** **Rp{total_payment:,}**"
+                ),
+                inline=False
+            )
+            
+            # Get admin mentions
+            owner = interaction.guild.owner
+            admin_mentions = []
+            for role_id in admin_roles:
+                role = interaction.guild.get_role(int(role_id))
+                if role:
+                    admin_mentions.append(role.mention)
+            
+            mention_text = f"{owner.mention} "
+            if admin_mentions:
+                mention_text += " ".join(admin_mentions)
+            
+            welcome_embed.add_field(
+                name="👥 Admin/Middleman",
+                value=f"{mention_text}\n*Admin akan memfasilitasi transaksi ini*",
+                inline=False
+            )
+            
+            welcome_embed.add_field(
+                name="📋 Alur Transaksi",
+                value=(
+                    "**Step 1:** Buyer transfer **Rp{:,}** ke rekening middleman\n"
+                    "**Step 2:** Upload bukti transfer (screenshot ASLI)\n"
+                    "**Step 3:** Admin verifikasi pembayaran buyer\n"
+                    "**Step 4:** Seller kirim item/jasa ke buyer\n"
+                    "**Step 5:** Seller upload bukti pengiriman\n"
+                    "**Step 6:** Admin approve & release dana ke seller\n\n"
+                    "**Note:** Gunakan `/close` jika ada pembatalan"
+                ).format(total_payment),
+                inline=False
+            )
+            
+            welcome_embed.add_field(
+                name="🏦 Rekening Middleman",
+                value=(
+                    "```\n"
+                    "Bank: BCA\n"
+                    "Rekening: 6241530865\n"
+                    "Atas Nama: Aryansyah Saputra\n"
+                    "```\n"
+                    f"**Transfer:** Rp{total_payment:,}"
+                ),
+                inline=False
+            )
+            
+            # WARNING
+            welcome_embed.add_field(
+                name="⚠️ PENTING: Bukti Transfer",
+                value=(
+                    "🚨 **Buyer & Seller WAJIB upload bukti ASLI!**\n\n"
+                    "❌ **DILARANG:**\n"
+                    "• Crop/edit screenshot\n"
+                    "• Blur/mosaic data\n"
+                    "• Gunakan gambar palsu\n\n"
+                    "✅ **WAJIB:**\n"
+                    "• Screenshot FULL & ASLI\n"
+                    "• Terlihat jelas semua detail\n\n"
+                    "⚡ **4-Layer Fraud Detection Active!**\n"
+                    "Screenshot palsu akan langsung ditolak."
+                ),
+                inline=False
+            )
+            
+            welcome_embed.set_footer(text=f"Middleman Ticket #{ticket_number:04d} • Status: Waiting Buyer Payment")
+            
+            await channel.send(embed=welcome_embed)
+            
+            # Notify user
+            await interaction.followup.send(
+                f"✅ Middleman ticket berhasil dibuat!\n\n"
+                f"🤝 **Ticket:** {channel.mention}\n"
+                f"💰 **Total Bayar:** Rp{total_payment:,} (Harga Rp{deal_price:,} + Fee Rp{mm_fee:,})\n\n"
+                f"Silakan buka channel ticket dan transfer ke rekening middleman!",
+                ephemeral=True
+            )
+            
+            # Log action
+            db.log_action(
+                guild_id=interaction.guild.id,
+                user_id=interaction.user.id,
+                action="create_mm_ticket",
+                details=f"Ticket #{ticket_number} - MM - Buyer: {buyer_username} - Seller: {seller_username} - Price: Rp{deal_price:,}"
+            )
+            
+        except discord.Forbidden:
+            await interaction.followup.send(
+                "❌ Bot tidak punya permission untuk membuat channel.\n"
+                "Enable `Manage Channels` permission untuk bot role.",
+                ephemeral=True
+            )
+        except Exception as e:
+            await interaction.followup.send(
+                f"❌ Error membuat ticket: {e}",
+                ephemeral=True
+            )
+
+
+class CreateMiddlemanButton(discord.ui.View):
+    """Persistent button untuk create middleman ticket"""
+    def __init__(self):
+        super().__init__(timeout=None)
+    
+    @discord.ui.button(
+        label="Create Middleman Ticket",
+        style=discord.ButtonStyle.success,
+        emoji="🤝",
+        custom_id="create_mm_ticket_button"
+    )
+    async def create_mm_ticket(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Handle button click to open middleman modal"""
+        modal = MiddlemanModal()
+        await interaction.response.send_modal(modal)
+
+
+def calculate_mm_fee(deal_price: int) -> int:
+    """Calculate middleman fee based on deal price
+    
+    Fee structure:
+    - <50K: Gratis (Rp0)
+    - 50K-500K: Rp2.000
+    - 500K-1Juta: Rp5.000
+    - 1Juta-5Juta: Rp7.500
+    - 5Juta-10Juta: Rp10.000
+    - 10Juta+: Rp15.000
+    """
+    if deal_price < 50000:
+        return 0
+    elif deal_price < 500000:
+        return 2000
+    elif deal_price < 1000000:
+        return 5000
+    elif deal_price < 5000000:
+        return 7500
+    elif deal_price < 10000000:
+        return 10000
+    else:
+        return 15000
+
+
 # --- MUAT VARIABEL LINGKUNGAN ---
 load_dotenv()  # Memuat variabel lingkungan dari file .env
 
@@ -1178,6 +1537,7 @@ class MyClient(discord.Client):
         """Called when the bot is starting"""
         # Register persistent view untuk button
         self.add_view(CreateTicketButton())
+        self.add_view(CreateMiddlemanButton())
         # Start auto-backup task
         self.auto_backup_task.start()
         # Start auto-update leaderboard task
@@ -1624,14 +1984,29 @@ class MyClient(discord.Client):
         ticket = db.get_ticket_by_channel(message.channel.id)
         
         if ticket and ticket['status'] == 'open' and message.attachments:
-            # Hanya proses jika owner ticket yang upload
-            if int(ticket['user_id']) == message.author.id:
-                # Cek apakah ada attachment gambar
-                for attachment in message.attachments:
-                    if attachment.content_type and attachment.content_type.startswith('image/'):
-                        # Auto-process sebagai bukti transfer
-                        await self.process_proof_submission(message, ticket, attachment.url)
-                        break  # Hanya proses 1 gambar pertama
+            # Check ticket type
+            is_middleman = ticket.get('ticket_type') == 'middleman'
+            buyer_id = int(ticket['user_id'])
+            seller_id = int(ticket.get('seller_id')) if ticket.get('seller_id') else None
+            
+            # Cek apakah ada attachment gambar
+            for attachment in message.attachments:
+                if attachment.content_type and attachment.content_type.startswith('image/'):
+                    # MIDDLEMAN TICKET: Handle both buyer and seller proof
+                    if is_middleman:
+                        # Buyer uploading proof
+                        if message.author.id == buyer_id:
+                            await self.process_proof_submission(message, ticket, attachment.url, proof_type='buyer')
+                            break
+                        # Seller uploading proof
+                        elif seller_id and message.author.id == seller_id:
+                            await self.process_proof_submission(message, ticket, attachment.url, proof_type='seller')
+                            break
+                    # PURCHASE TICKET: Only buyer proof
+                    else:
+                        if message.author.id == buyer_id:
+                            await self.process_proof_submission(message, ticket, attachment.url)
+                            break
         
         # Auto-reaction untuk channel #marketplace
         if message.channel.name == "marketplace":
@@ -1704,12 +2079,111 @@ class MyClient(discord.Client):
         except Exception:
             pass
     
-    async def process_proof_submission(self, message: discord.Message, ticket: dict, proof_url: str):
-        """Process auto-detected proof submission from image upload"""
+    async def process_proof_submission(self, message: discord.Message, ticket: dict, proof_url: str, proof_type: str = 'buyer'):
+        """Process auto-detected proof submission from image upload
+        
+        Args:
+            message: Discord message object
+            ticket: Ticket dictionary from database
+            proof_url: URL of the uploaded image
+            proof_type: 'buyer' for buyer payment proof, 'seller' for seller delivery proof
+        """
         try:
             print(f"\n{'='*60}")
-            print(f"🔍 PROCESSING PROOF: Ticket #{ticket['ticket_number']:04d}")
+            print(f"🔍 PROCESSING {proof_type.upper()} PROOF: Ticket #{ticket['ticket_number']:04d}")
             print(f"{'='*60}")
+            
+            # === SELLER PROOF (Simpler validation) ===
+            if proof_type == 'seller':
+                print("📦 Processing seller delivery proof...")
+                
+                # Run basic fraud detection (no transfer signature needed)
+                legitimate_check = await detect_legitimate_transfer_screenshot(proof_url)
+                manipulation_result = await detect_image_manipulation(proof_url)
+                
+                if manipulation_result['manipulation_detected'] and manipulation_result['confidence'] > 60:
+                    await message.channel.send(
+                        f"{message.author.mention}\n"
+                        "🚨 **GAMBAR MENCURIGAKAN TERDETEKSI!**\n\n"
+                        f"❌ Gambar terdeteksi manipulasi (confidence: {manipulation_result['confidence']:.1f}%)\n\n"
+                        "⚠️ Upload screenshot/bukti ASLI tanpa edit!"
+                    )
+                    await message.add_reaction("❌")
+                    return
+                
+                # Save seller proof
+                db.update_seller_proof(ticket['id'], proof_url)
+                
+                # Send confirmation
+                seller_embed = discord.Embed(
+                    title="📦 Bukti Pengiriman Diterima",
+                    description=f"{message.author.mention} telah upload bukti pengiriman item.",
+                    color=0xFFA500,
+                    timestamp=datetime.now()
+                )
+                
+                seller_embed.add_field(
+                    name="🎫 Ticket ID",
+                    value=f"`#{ticket['ticket_number']:04d}`",
+                    inline=True
+                )
+                
+                seller_embed.add_field(
+                    name="📦 Item",
+                    value=f"`{ticket.get('item_description', 'N/A')}`",
+                    inline=True
+                )
+                
+                seller_embed.add_field(
+                    name="💰 Deal Price",
+                    value=f"**Rp{ticket.get('deal_price', 0):,}**",
+                    inline=True
+                )
+                
+                seller_embed.add_field(
+                    name="🔗 Bukti Seller",
+                    value=f"[📸 Klik untuk melihat]({proof_url})",
+                    inline=False
+                )
+                
+                seller_embed.add_field(
+                    name="⚙️ Next Step",
+                    value="Admin akan verifikasi dan release dana ke seller.\nGunakan `/approve-mm` untuk approve transaksi.",
+                    inline=False
+                )
+                
+                seller_embed.set_footer(
+                    text="⏳ Waiting admin approval | Middleman Transaction",
+                    icon_url=message.guild.icon.url if message.guild.icon else None
+                )
+                
+                # Get admin mentions
+                guild_config = db.get_guild_config(message.guild.id)
+                admin_roles = guild_config.get('admin_roles', [])
+                owner = message.guild.owner
+                
+                admin_mentions = [owner.mention]
+                for role_id in admin_roles:
+                    role = message.guild.get_role(int(role_id))
+                    if role:
+                        admin_mentions.append(role.mention)
+                
+                mention_text = " ".join(admin_mentions)
+                
+                await message.channel.send(
+                    f"🔔 {mention_text}\n\n"
+                    f"📦 **SELLER PROOF RECEIVED!**\n"
+                    f"Ticket #{ticket['ticket_number']:04d} - Seller telah upload bukti pengiriman.\n\n"
+                    f"Silakan verifikasi dan gunakan `/approve-mm` untuk release dana.",
+                    embed=seller_embed
+                )
+                
+                await message.add_reaction("✅")
+                print(f"✅ Seller proof saved successfully")
+                return
+            
+            # === BUYER PROOF (Full 4-Layer Fraud Detection) ===
+            print("💰 Processing buyer payment proof with 4-Layer Fraud Detection...")
             
             # === LAYER 1: TRANSFER SIGNATURE CHECK (Account + Date + Amount) ===
             print("📝 Layer 1: Extracting transfer signature...")
@@ -1960,6 +2434,10 @@ class MyClient(discord.Client):
             if proof_hash:
                 db.save_proof_hash(ticket['id'], proof_hash['combined'], transfer_signature)
             
+            # Update mm_status if middleman ticket
+            if ticket.get('ticket_type') == 'middleman':
+                db.update_mm_status(ticket['id'], 'waiting_item_delivery')
+            
             # GET ADMIN & OWNER untuk TAG
             guild_config = db.get_guild_config(message.guild.id)
             admin_roles = guild_config.get('admin_roles', [])
@@ -1976,6 +2454,11 @@ class MyClient(discord.Client):
             if admin_mentions:
                 mention_text += " ".join(admin_mentions)
             
+            # Determine command based on ticket type
+            is_middleman = ticket.get('ticket_type') == 'middleman'
+            approve_cmd = "/approve-mm" if is_middleman else "/approve-ticket"
+            reject_cmd = "/reject-mm" if is_middleman else "/reject-ticket"
+            
             # SEND dengan TAG ADMIN & OWNER
             await message.channel.send(
                 f"🔔 {mention_text}\n\n"
@@ -1985,8 +2468,8 @@ class MyClient(discord.Client):
                 f"⚡ Fraud Detection: **PASSED** (All Layers)\n"
                 f"🤖 Screenshot: **LEGITIMATE** (Confidence: {legitimate_check['confidence']:.1f}%)\n\n"
                 f"Admin harap verifikasi menggunakan:\n"
-                f"• ✅ `/approve-ticket` — Approve transaksi\n"
-                f"• ❌ `/reject-ticket` — Reject transaksi",
+                f"• ✅ `{approve_cmd}` — Approve transaksi\n"
+                f"• ❌ `{reject_cmd}` — Reject transaksi",
                 embed=submit_embed
             )
             
@@ -3495,6 +3978,167 @@ async def setup_ticket_channel(interaction: discord.Interaction):
         await interaction.followup.send(f"❌ Error: {e}", ephemeral=True)
 
 
+# --- Slash Command: /setup-mm ---
+@client.tree.command(
+    name="setup-mm",
+    description="[OWNER] Setup channel untuk middleman ticket system."
+)
+@owner_only()
+async def setup_mm_channel(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=True)
+    
+    # Cek apakah channel sudah ada
+    existing_channel = discord.utils.get(interaction.guild.text_channels, name="create-ticket-mm")
+    
+    if existing_channel:
+        await interaction.followup.send(
+            f"✅ Channel {existing_channel.mention} sudah ada.\n"
+            f"User bisa langsung klik button untuk create middleman ticket.",
+            ephemeral=True
+        )
+        return
+    
+    # Buat channel create-ticket-mm
+    try:
+        # Cari kategori "TICKET MIDDLEMAN" atau buat baru
+        mm_category = discord.utils.get(interaction.guild.categories, name="TICKET MIDDLEMAN")
+        if not mm_category:
+            mm_category = await interaction.guild.create_category(name="TICKET MIDDLEMAN")
+        
+        # Create channel
+        overwrites = {
+            interaction.guild.default_role: discord.PermissionOverwrite(
+                read_messages=True,
+                send_messages=False,  # User tidak bisa kirim message, hanya klik button
+                add_reactions=False,
+                attach_files=False
+            ),
+            interaction.guild.me: discord.PermissionOverwrite(
+                read_messages=True,
+                send_messages=True,
+                manage_messages=True
+            )
+        }
+        
+        channel = await interaction.guild.create_text_channel(
+            name="create-ticket-mm",
+            overwrites=overwrites,
+            category=mm_category,
+            topic="🤝 Klik button untuk membuka middleman ticket"
+        )
+        
+        # Kirim instruksi di channel
+        instruction_embed = discord.Embed(
+            title="🤝 Middleman Service - Panduan",
+            description="Selamat datang di layanan Middleman! Kami memfasilitasi transaksi antara buyer dan seller dengan aman.",
+            color=0xFF9900,  # Orange
+            timestamp=datetime.now()
+        )
+        
+        instruction_embed.add_field(
+            name="📝 Cara Menggunakan Middleman",
+            value=(
+                "**1.** Klik tombol **Create Middleman Ticket** di bawah\n\n"
+                "**2.** Isi form:\n"
+                "   • Username Buyer (in-game)\n"
+                "   • Username/ID Seller\n"
+                "   • Item/Jasa yang ditransaksikan\n"
+                "   • Harga yang sudah disepakati\n\n"
+                "**3.** Bot akan create private channel untuk transaksi\n\n"
+                "**4.** Buyer transfer ke rekening middleman\n\n"
+                "**5.** Seller kirim item setelah payment verified\n\n"
+                "**6.** Admin release dana ke seller setelah buyer konfirmasi"
+            ),
+            inline=False
+        )
+        
+        instruction_embed.add_field(
+            name="💰 Fee Middleman",
+            value=(
+                "```\n"
+                "< Rp50.000       : GRATIS\n"
+                "Rp50.000-500K    : Rp2.000\n"
+                "Rp500K-1Juta     : Rp5.000\n"
+                "Rp1Juta-5Juta    : Rp7.500\n"
+                "Rp5Juta-10Juta   : Rp10.000\n"
+                "Rp10Juta+        : Rp15.000\n"
+                "```\n"
+                "*Fee dibayar oleh buyer (ditambahkan ke harga deal)*"
+            ),
+            inline=False
+        )
+        
+        instruction_embed.add_field(
+            name="🏦 Rekening Middleman",
+            value=(
+                "```\n"
+                "Bank: BCA\n"
+                "Rekening: 6241530865\n"
+                "Atas Nama: Aryansyah Saputra\n"
+                "```"
+            ),
+            inline=False
+        )
+        
+        instruction_embed.add_field(
+            name="✅ Keuntungan Pakai Middleman",
+            value=(
+                "• 🛡️ **Aman** - Dana ditahan sampai seller kirim item\n"
+                "• 🤝 **Terpercaya** - Admin memverifikasi semua transaksi\n"
+                "• ⚡ **4-Layer Fraud Detection** - Bukti palsu auto-reject\n"
+                "• 💸 **Fee Murah** - Mulai dari GRATIS untuk <50K"
+            ),
+            inline=False
+        )
+        
+        instruction_embed.add_field(
+            name="⚠️ Penting",
+            value=(
+                "• Upload bukti transfer ASLI (tidak boleh edit/crop)\n"
+                "• 1 user hanya bisa punya 1 ticket aktif\n"
+                "• Gunakan `/close` untuk membatalkan transaksi\n"
+                "• Button akan tetap ada meski bot restart"
+            ),
+            inline=False
+        )
+        
+        instruction_embed.set_footer(text="Klik tombol di bawah untuk mulai! • Trusted Middleman Service")
+        
+        # Send embed with button
+        view = CreateMiddlemanButton()
+        message = await channel.send(embed=instruction_embed, view=view)
+        
+        # Konfirmasi ke admin
+        await interaction.followup.send(
+            f"✅ Channel {channel.mention} berhasil dibuat di kategori **{mm_category.name}**!\n\n"
+            f"**Setup selesai!** User sekarang bisa:\n"
+            f"1. Masuk ke {channel.mention}\n"
+            f"2. Klik tombol **Create Middleman Ticket**\n"
+            f"3. Isi form transaksi\n"
+            f"4. Bot akan auto-create middleman ticket channel\n\n"
+            f"**Note:** Pastikan bot punya permission `Manage Channels` dan `Manage Messages`.\n"
+            f"Button akan tetap ada meskipun bot restart (persistent button).",
+            ephemeral=True
+        )
+        
+        # Log action
+        db.log_action(
+            guild_id=interaction.guild.id,
+            user_id=interaction.user.id,
+            action="setup_mm_channel",
+            details=f"Created #create-ticket-mm channel: {channel.id}"
+        )
+        
+    except discord.Forbidden:
+        await interaction.followup.send(
+            "❌ Bot tidak punya permission untuk membuat channel.\n"
+            "Enable `Manage Channels` permission untuk bot role.",
+            ephemeral=True
+        )
+    except Exception as e:
+        await interaction.followup.send(f"❌ Error: {e}", ephemeral=True)
+
+
 # --- Slash Command: /clear ---
 @client.tree.command(
     name="clear",
@@ -4256,6 +4900,221 @@ async def setup_leaderboard(interaction: discord.Interaction):
             f"❌ Bot tidak punya permission untuk kirim message di {lb_channel.mention}!",
             ephemeral=True
         )
+    except Exception as e:
+        await interaction.followup.send(f"❌ Error: {e}", ephemeral=True)
+
+
+# --- Slash Command: /approve-mm ---
+@client.tree.command(
+    name="approve-mm",
+    description="[ADMIN] Approve middleman transaction dan release dana ke seller."
+)
+@app_commands.default_permissions(administrator=True)
+async def approve_mm(interaction: discord.Interaction):
+    try:
+        ticket = db.get_ticket_by_channel(interaction.channel.id)
+        
+        if not ticket:
+            await interaction.response.send_message("❌ Command ini hanya bisa digunakan di middleman ticket channel.", ephemeral=True)
+            return
+        
+        if ticket.get('ticket_type') != 'middleman':
+            await interaction.response.send_message("❌ Ini bukan middleman ticket. Gunakan `/approve-ticket` untuk ticket purchase.", ephemeral=True)
+            return
+        
+        if ticket['status'] != 'open':
+            await interaction.response.send_message("❌ Ticket ini sudah ditutup.", ephemeral=True)
+            return
+        
+        # Verify buyer has submitted proof
+        if not ticket.get('proof_url'):
+            await interaction.response.send_message("❌ Buyer belum upload bukti transfer!", ephemeral=True)
+            return
+        
+        await interaction.response.defer()
+        
+        # Get ticket details
+        deal_price = ticket.get('deal_price', 0)
+        mm_fee = ticket.get('mm_fee', 0)
+        buyer_id = ticket['user_id']
+        seller_username = ticket.get('seller_username', 'Unknown Seller')
+        
+        # Calculate payout to seller (deal_price - fee sudah dibayar buyer)
+        seller_payout = deal_price
+        
+        # Close ticket
+        db.close_ticket(ticket['id'], interaction.user.id)
+        
+        # Update stats untuk buyer (bukan seller, karena seller dapat dari middleman)
+        db.update_user_stats(interaction.guild.id, int(buyer_id), deal_price)
+        db.add_transaction(
+            guild_id=interaction.guild.id,
+            user_id=int(buyer_id),
+            amount=deal_price,
+            category="middleman_buyer",
+            notes=f"Middleman ticket #{ticket['ticket_number']:04d} - {ticket.get('item_description', 'Item')}",
+            recorded_by=interaction.user.id
+        )
+        
+        # Send completion message
+        completion_embed = discord.Embed(
+            title="✅ Transaksi Middleman Berhasil!",
+            description=f"Ticket #{ticket['ticket_number']:04d} telah diselesaikan oleh {interaction.user.mention}",
+            color=0x00FF00,
+            timestamp=datetime.now()
+        )
+        
+        completion_embed.add_field(
+            name="📦 Detail Transaksi",
+            value=(
+                f"**Item:** {ticket.get('item_description', 'N/A')}\n"
+                f"**Harga Deal:** Rp{deal_price:,}\n"
+                f"**Fee Middleman:** Rp{mm_fee:,}"
+            ),
+            inline=False
+        )
+        
+        completion_embed.add_field(
+            name="👤 Buyer",
+            value=f"<@{buyer_id}>",
+            inline=True
+        )
+        
+        completion_embed.add_field(
+            name="👤 Seller",
+            value=f"`{seller_username}`",
+            inline=True
+        )
+        
+        completion_embed.add_field(
+            name="\u200b",
+            value="\u200b",
+            inline=True
+        )
+        
+        completion_embed.add_field(
+            name="💰 Payout Info",
+            value=(
+                f"**Seller akan menerima:** Rp{seller_payout:,}\n"
+                f"**Fee Middleman:** Rp{mm_fee:,}\n\n"
+                f"*Admin: Transfer Rp{seller_payout:,} ke seller*"
+            ),
+            inline=False
+        )
+        
+        completion_embed.set_footer(
+            text=f"Approved by {interaction.user.name} • Ticket closed",
+            icon_url=interaction.user.display_avatar.url
+        )
+        
+        await interaction.channel.send(embed=completion_embed)
+        
+        await interaction.followup.send(
+            f"✅ **Middleman transaksi berhasil diapprove!**\n\n"
+            f"📌 Ticket #{ticket['ticket_number']:04d} ditutup\n"
+            f"💰 Seller payout: **Rp{seller_payout:,}**\n"
+            f"💵 Fee middleman: **Rp{mm_fee:,}**\n\n"
+            f"⚠️ **JANGAN LUPA:** Transfer Rp{seller_payout:,} ke seller `{seller_username}`!",
+            ephemeral=True
+        )
+        
+        # Log action
+        db.log_action(
+            guild_id=interaction.guild.id,
+            user_id=interaction.user.id,
+            action="approve_mm_ticket",
+            details=f"Ticket #{ticket['ticket_number']:04d} - Seller payout: Rp{seller_payout:,} - Fee: Rp{mm_fee:,}"
+        )
+        
+        # Auto-delete channel after 30 seconds
+        await asyncio.sleep(30)
+        try:
+            await interaction.channel.delete()
+        except:
+            pass
+            
+    except Exception as e:
+        await interaction.followup.send(f"❌ Error: {e}", ephemeral=True)
+
+
+# --- Slash Command: /reject-mm ---
+@client.tree.command(
+    name="reject-mm",
+    description="[ADMIN] Reject middleman transaction."
+)
+@app_commands.default_permissions(administrator=True)
+async def reject_mm(interaction: discord.Interaction, reason: str = "Bukti tidak valid"):
+    try:
+        ticket = db.get_ticket_by_channel(interaction.channel.id)
+        
+        if not ticket:
+            await interaction.response.send_message("❌ Command ini hanya bisa digunakan di middleman ticket channel.", ephemeral=True)
+            return
+        
+        if ticket.get('ticket_type') != 'middleman':
+            await interaction.response.send_message("❌ Ini bukan middleman ticket. Gunakan `/reject-ticket` untuk ticket purchase.", ephemeral=True)
+            return
+        
+        if ticket['status'] != 'open':
+            await interaction.response.send_message("❌ Ticket ini sudah ditutup.", ephemeral=True)
+            return
+        
+        await interaction.response.defer()
+        
+        # Close ticket
+        db.close_ticket(ticket['id'], interaction.user.id)
+        
+        # Send rejection message
+        reject_embed = discord.Embed(
+            title="❌ Transaksi Middleman Ditolak",
+            description=f"Ticket #{ticket['ticket_number']:04d} telah ditolak oleh {interaction.user.mention}",
+            color=0xFF0000,
+            timestamp=datetime.now()
+        )
+        
+        reject_embed.add_field(
+            name="📋 Alasan",
+            value=f"`{reason}`",
+            inline=False
+        )
+        
+        reject_embed.add_field(
+            name="ℹ️ Info",
+            value=(
+                "Transaksi middleman dibatalkan.\n"
+                "Jika ada dana yang sudah ditransfer, hubungi admin untuk refund."
+            ),
+            inline=False
+        )
+        
+        reject_embed.set_footer(
+            text=f"Rejected by {interaction.user.name}",
+            icon_url=interaction.user.display_avatar.url
+        )
+        
+        await interaction.channel.send(f"<@{ticket['user_id']}>", embed=reject_embed)
+        
+        await interaction.followup.send(
+            f"✅ Middleman ticket #{ticket['ticket_number']:04d} berhasil direject!\n"
+            f"Channel akan dihapus dalam 30 detik.",
+            ephemeral=True
+        )
+        
+        # Log action
+        db.log_action(
+            guild_id=interaction.guild.id,
+            user_id=interaction.user.id,
+            action="reject_mm_ticket",
+            details=f"Ticket #{ticket['ticket_number']:04d} - Reason: {reason}"
+        )
+        
+        # Auto-delete channel after 30 seconds
+        await asyncio.sleep(30)
+        try:
+            await interaction.channel.delete()
+        except:
+            pass
+            
     except Exception as e:
         await interaction.followup.send(f"❌ Error: {e}", ephemeral=True)
 

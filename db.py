@@ -113,6 +113,16 @@ class BotDatabase:
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 closed_at TIMESTAMP,
                 closed_by TEXT,
+                ticket_type TEXT DEFAULT 'purchase',
+                seller_id TEXT,
+                seller_username TEXT,
+                item_description TEXT,
+                deal_price INTEGER,
+                mm_fee INTEGER DEFAULT 0,
+                mm_status TEXT,
+                seller_proof_url TEXT,
+                proof_hash TEXT,
+                transfer_signature TEXT,
                 UNIQUE(guild_id, user_id, status)
             )
         """)
@@ -200,6 +210,23 @@ class BotDatabase:
             cursor.execute("ALTER TABLE guild_config ADD COLUMN ticket_setup_channel_id TEXT")
             cursor.execute("ALTER TABLE guild_config ADD COLUMN price_hash TEXT")
             print("✅ Kolom ticket setup tracking berhasil ditambahkan ke guild_config")
+        except sqlite3.OperationalError as e:
+            # Kolom sudah ada, skip
+            if "duplicate column name" not in str(e).lower():
+                print(f"⚠️ ALTER TABLE warning: {e}")
+        
+        # ALTER TABLE untuk tambah kolom middleman system
+        try:
+            cursor.execute("ALTER TABLE tickets ADD COLUMN ticket_type TEXT DEFAULT 'purchase'")
+            cursor.execute("ALTER TABLE tickets ADD COLUMN seller_id TEXT")
+            cursor.execute("ALTER TABLE tickets ADD COLUMN seller_username TEXT")
+            cursor.execute("ALTER TABLE tickets ADD COLUMN item_description TEXT")
+            cursor.execute("ALTER TABLE tickets ADD COLUMN deal_price INTEGER")
+            cursor.execute("ALTER TABLE tickets ADD COLUMN mm_fee INTEGER DEFAULT 0")
+            cursor.execute("ALTER TABLE tickets ADD COLUMN mm_status TEXT")
+            cursor.execute("ALTER TABLE tickets ADD COLUMN seller_proof_url TEXT")
+            cursor.execute("ALTER TABLE tickets ADD COLUMN transfer_signature TEXT")
+            print("✅ Kolom middleman system berhasil ditambahkan ke tickets")
         except sqlite3.OperationalError as e:
             # Kolom sudah ada, skip
             if "duplicate column name" not in str(e).lower():
@@ -574,8 +601,10 @@ class BotDatabase:
     
     # === Ticket Management ===
     
-    def create_ticket(self, guild_id: int, user_id: int, channel_id: int, game_username: str = None) -> int:
-        """Buat ticket baru, return ticket_id"""
+    def create_ticket(self, guild_id: int, user_id: int, channel_id: int, game_username: str = None, 
+                     ticket_type: str = 'purchase', seller_id: str = None, seller_username: str = None,
+                     item_description: str = None, deal_price: int = None, mm_fee: int = 0) -> int:
+        """Buat ticket baru (purchase atau middleman), return ticket_id"""
         conn = None
         try:
             conn = self.get_connection()
@@ -588,10 +617,19 @@ class BotDatabase:
             result = cursor.fetchone()
             next_number = (result[0] or 0) + 1
             
+            # Set mm_status untuk middleman tickets
+            mm_status = 'waiting_buyer_payment' if ticket_type == 'middleman' else None
+            
             cursor.execute("""
-                INSERT INTO tickets (guild_id, user_id, channel_id, ticket_number, game_username, status)
-                VALUES (?, ?, ?, ?, ?, 'open')
-            """, (str(guild_id), str(user_id), str(channel_id), next_number, game_username))
+                INSERT INTO tickets (
+                    guild_id, user_id, channel_id, ticket_number, game_username, status,
+                    ticket_type, seller_id, seller_username, item_description, 
+                    deal_price, mm_fee, mm_status
+                )
+                VALUES (?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, ?)
+            """, (str(guild_id), str(user_id), str(channel_id), next_number, game_username,
+                  ticket_type, seller_id, seller_username, item_description, 
+                  deal_price, mm_fee, mm_status))
             
             ticket_id = cursor.lastrowid
             conn.commit()
@@ -633,7 +671,9 @@ class BotDatabase:
         conn = self.get_connection()
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT id, guild_id, user_id, ticket_number, game_username, status, created_at
+            SELECT id, guild_id, user_id, ticket_number, game_username, status, created_at,
+                   ticket_type, seller_id, seller_username, item_description, deal_price, 
+                   mm_fee, mm_status, seller_proof_url
             FROM tickets
             WHERE channel_id = ?
         """, (str(channel_id),))
@@ -650,7 +690,15 @@ class BotDatabase:
             'ticket_number': row[3],
             'game_username': row[4],
             'status': row[5],
-            'created_at': row[6]
+            'created_at': row[6],
+            'ticket_type': row[7] or 'purchase',
+            'seller_id': row[8],
+            'seller_username': row[9],
+            'item_description': row[10],
+            'deal_price': row[11],
+            'mm_fee': row[12] or 0,
+            'mm_status': row[13],
+            'seller_proof_url': row[14]
         }
     
     def add_item_to_ticket(self, ticket_id: int, item_name: str, amount: int):
@@ -1112,5 +1160,66 @@ class BotDatabase:
         
         conn.commit()
         conn.close()
+    
+    # === Middleman Methods ===
+    
+    def update_mm_status(self, ticket_id: int, mm_status: str):
+        """Update middleman ticket status"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE tickets
+            SET mm_status = ?
+            WHERE id = ?
+        """, (mm_status, ticket_id))
+        conn.commit()
+        conn.close()
+    
+    def update_seller_proof(self, ticket_id: int, seller_proof_url: str):
+        """Update seller proof URL"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE tickets
+            SET seller_proof_url = ?, mm_status = 'waiting_admin_approval'
+            WHERE id = ?
+        """, (seller_proof_url, ticket_id))
+        conn.commit()
+        conn.close()
+    
+    def get_mm_ticket_details(self, ticket_id: int) -> Optional[Dict]:
+        """Get full middleman ticket details"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT id, guild_id, user_id, channel_id, ticket_number, 
+                   seller_id, seller_username, item_description, deal_price, mm_fee, mm_status,
+                   proof_url, seller_proof_url, status, created_at
+            FROM tickets
+            WHERE id = ? AND ticket_type = 'middleman'
+        """, (ticket_id,))
+        row = cursor.fetchone()
+        conn.close()
+        
+        if not row:
+            return None
+        
+        return {
+            'id': row[0],
+            'guild_id': row[1],
+            'user_id': row[2],
+            'channel_id': row[3],
+            'ticket_number': row[4],
+            'seller_id': row[5],
+            'seller_username': row[6],
+            'item_description': row[7],
+            'deal_price': row[8],
+            'mm_fee': row[9],
+            'mm_status': row[10],
+            'buyer_proof_url': row[11],
+            'seller_proof_url': row[12],
+            'status': row[13],
+            'created_at': row[14]
+        }
     
     # === Testimonial Methods ===
