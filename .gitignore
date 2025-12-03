@@ -1,0 +1,25 @@
+# Environment variables
+.env
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# Database (akan di-upload manual atau gunakan Railway volume)
+data/bot_database.db
+
+# Backups (tidak perlu di-upload)
+data/backups/
+
+# VS Code settings
+.vscode/
+
+# Windows
+Thumbs.db
+desktop.ini
