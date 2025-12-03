@@ -1498,7 +1498,12 @@ class MyClient(discord.Client):
             if welcome_channel:
                 # Cari channel #open-ticket untuk mention
                 open_ticket_channel = discord.utils.get(member.guild.text_channels, name="open-ticket")
-                channel_mention = open_ticket_channel.mention if open_ticket_channel else "`#open-ticket`"
+                # Format channel mention dengan benar
+                if open_ticket_channel:
+                    channel_mention = open_ticket_channel.mention
+                else:
+                    # Jika channel tidak ada, gunakan text biasa tanpa #
+                    channel_mention = "channel **open-ticket**"
                 
                 # Embed estetik dengan gradient color
                 welcome_embed = discord.Embed(
