@@ -226,8 +226,16 @@ class BotDatabase:
             cursor.execute("ALTER TABLE tickets ADD COLUMN mm_status TEXT")
             cursor.execute("ALTER TABLE tickets ADD COLUMN seller_proof_url TEXT")
             cursor.execute("ALTER TABLE tickets ADD COLUMN transfer_signature TEXT")
-            cursor.execute("ALTER TABLE tickets ADD COLUMN fee_payer TEXT DEFAULT 'buyer'")
             print("✅ Kolom middleman system berhasil ditambahkan ke tickets")
+        except sqlite3.OperationalError as e:
+            # Kolom sudah ada, skip
+            if "duplicate column name" not in str(e).lower():
+                print(f"⚠️ ALTER TABLE warning: {e}")
+        
+        # ALTER TABLE untuk tambah kolom fee_payer (NEW)
+        try:
+            cursor.execute("ALTER TABLE tickets ADD COLUMN fee_payer TEXT DEFAULT 'buyer'")
+            print("✅ Kolom fee_payer berhasil ditambahkan ke tickets")
         except sqlite3.OperationalError as e:
             # Kolom sudah ada, skip
             if "duplicate column name" not in str(e).lower():
