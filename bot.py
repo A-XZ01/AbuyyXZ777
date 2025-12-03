@@ -2064,6 +2064,19 @@ class MyClient(discord.Client):
         except Exception as e:
             print(f"❌ Error di on_member_remove: {e}")
 
+    async def on_guild_channel_delete(self, channel: discord.TextChannel):
+        """Auto-close ticket ketika channel dihapus manual"""
+        try:
+            # Cek apakah channel ini adalah ticket channel
+            ticket = db.get_ticket_by_channel(channel.id)
+            
+            if ticket and ticket['status'] == 'open':
+                # Auto-close ticket
+                db.close_ticket(ticket['id'], closed_by=0)  # 0 = auto-closed
+                print(f"✅ Auto-closed ticket #{ticket['ticket_number']:04d} (channel deleted: {channel.name})")
+        except Exception as e:
+            print(f"❌ Error in on_guild_channel_delete: {e}")
+    
     async def on_message(self, message: discord.Message):
         # Skip DM messages
         if not message.guild:
@@ -4157,11 +4170,11 @@ async def setup_mm_channel(interaction: discord.Interaction):
                 "< Rp50.000       : GRATIS\n"
                 "Rp50.000-500K    : Rp2.000\n"
                 "Rp500K-1Juta     : Rp5.000\n"
-                "Rp1Juta-5Juta    : Rp7.500\n"
+                "Rp1Juta-5Juta    : Rp7.000\n"
                 "Rp5Juta-10Juta   : Rp10.000\n"
                 "Rp10Juta+        : Rp15.000\n"
                 "```\n"
-                "*Fee dibayar oleh buyer (ditambahkan ke harga deal)*"
+                "*Fee dapat dibayar oleh buyer, seller, atau split 50:50 (>5M)*"
             ),
             inline=False
         )
