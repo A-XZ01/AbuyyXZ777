@@ -2119,16 +2119,6 @@ class MyClient(discord.Client):
                             await self.process_proof_submission(message, ticket, attachment.url)
                             break
         
-        # Auto-reaction untuk channel #marketplace
-        if message.channel.name == "marketplace":
-            try:
-                await message.add_reaction("✅")
-                await message.add_reaction("❌")
-            except discord.Forbidden:
-                pass  # Ignore jika bot tidak punya permission
-            except Exception as e:
-                print(f"❌ Error adding reaction: {e}")
-        
         # Cek guild config untuk auto-detect channels
         guild_config = db.get_guild_config(message.guild.id)
         auto_channels = guild_config.get('auto_detect_channels', [])
