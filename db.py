@@ -533,6 +533,42 @@ class BotDatabase:
             for row in rows
         ]
     
+    def get_daily_leaderboard(self, guild_id: int, limit: int = None) -> List[Dict[str, Any]]:
+        """Ambil leaderboard berdasarkan transaksi hari ini"""
+        from datetime import datetime
+        today = datetime.now().strftime('%Y-%m-%d')
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        # Query transaksi hari ini, group by user
+        query = """
+            SELECT 
+                user_id,
+                SUM(amount) as daily_spend,
+                COUNT(*) as deals_count
+            FROM transactions
+            WHERE guild_id = ? AND DATE(timestamp) = ?
+            GROUP BY user_id
+            ORDER BY daily_spend DESC
+        """
+        
+        if limit:
+            query += f" LIMIT {limit}"
+        
+        cursor.execute(query, (str(guild_id), today))
+        
+        rows = cursor.fetchall()
+        conn.close()
+        
+        return [
+            {
+                'user_id': row['user_id'],
+                'daily_spend': row['daily_spend'],
+                'deals_count': row['deals_count']
+            }
+            for row in rows
+        ]
+    
     def get_last_reset_date(self, guild_id: int) -> Optional[str]:
         """Get tanggal reset terakhir untuk guild"""
         conn = self.get_connection()
