@@ -339,26 +339,22 @@ class QuantityModal(discord.ui.Modal):
             price = self.item_data['price_idr']
             total = price * qty
             
-            # Add item to ticket
-            db.add_ticket_item(
+            # Add item to ticket (database schema: ticket_id, item_name, amount)
+            db.add_item_to_ticket(
                 ticket_id=self.ticket_id,
-                item_code=self.item_data['code'],
                 item_name=self.item_data['name'],
-                robux_amount=self.item_data['robux'],
-                price_per_item=price,
-                quantity=qty,
-                total_price=total
+                amount=total
             )
             
             # Get updated ticket items
             ticket_items = db.get_ticket_items(self.ticket_id)
-            grand_total = sum(item['total_price'] for item in ticket_items)
+            grand_total = sum(item['amount'] for item in ticket_items)
             
             # Build item list
             items_text = []
             for item in ticket_items:
                 items_text.append(
-                    f"• **{item['item_name']}** x{item['quantity']} = Rp{item['total_price']:,}"
+                    f"• **{item['item_name']}** = Rp{item['amount']:,}"
                 )
             
             embed = discord.Embed(
