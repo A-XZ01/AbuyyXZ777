@@ -3079,9 +3079,9 @@ async def stats_command(interaction: discord.Interaction, user: Optional[discord
     )
 
     await interaction.response.send_message(embed=embed, ephemeral=False)
-# --- Slash Command: /allstats ---
+# --- Slash Command: /weekly-leaderboard ---
 @client.tree.command(
-    name="allstats",
+    name="weekly-leaderboard",
     description="[OWNER] 🏆 Weekly Leaderboard - Reset Ranking Setiap Senin"
 )
 @app_commands.describe(
@@ -3090,7 +3090,7 @@ async def stats_command(interaction: discord.Interaction, user: Optional[discord
 )
 @app_commands.default_permissions(administrator=True)
 @owner_only()
-async def allstats_command(interaction: discord.Interaction, page: Optional[int] = 1, per_page: Optional[int] = 10):
+async def weekly_leaderboard_command(interaction: discord.Interaction, page: Optional[int] = 1, per_page: Optional[int] = 10):
     await interaction.response.defer()
     
     try:
@@ -3228,8 +3228,8 @@ async def allstats_command(interaction: discord.Interaction, page: Optional[int]
                 print(f"⚠️ Failed to post to #lb-rich-weekly: {e}")
     
     except Exception as e:
-        # Global error handler untuk /allstats
-        print(f"❌ Error in /allstats: {e}")
+        # Global error handler untuk /weekly-leaderboard
+        print(f"❌ Error in /weekly-leaderboard: {e}")
         import traceback
         traceback.print_exc()
         try:
