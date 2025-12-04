@@ -1864,74 +1864,56 @@ class MyClient(discord.Client):
         await self.wait_until_ready()
     
     async def generate_leaderboard_embed(self, guild: discord.Guild) -> discord.Embed:
-        """Generate embed untuk leaderboard"""
-        from datetime import datetime as dt, timedelta
+        """Generate embed untuk auto-update leaderboard harian"""
+        from datetime import datetime as dt
         
         # Ambil top 10 daily stats
         daily_stats = db.get_daily_leaderboard(guild.id, limit=10)
         
-        # Get today info
-        today = dt.now()
-        
-        # Buat embed
+        # Buat embed modern
         embed = discord.Embed(
-            title="",
+            title="📊 Daily Leaderboard — Top Sultan Hari Ini",
             description="",
-            color=0xFFD700,
-            timestamp=today
+            color=0x00D9FF,  # Cyan modern
+            timestamp=dt.now()
         )
         
-        embed.set_author(
-            name="👑 Daily Leaderboard — Top Sultan",
-            icon_url=guild.icon.url if guild.icon else None
-        )
-        
+        # Set thumbnail
         if guild.icon:
             embed.set_thumbnail(url=guild.icon.url)
         
-        # Ranking icons - attractive for top 3, uniform for 4-10
-        ranking_emoji = {
-            1: "👑",  # Crown for #1
-            2: "🌟",  # Star for #2
-            3: "💎"   # Diamond for #3
-        }
-        
+        # Build leaderboard
         if not daily_stats:
-            embed.description = (
-                f"🏆 **Top 10 Sultan**\n\n"
-                "Belum ada transaksi hari ini."
-            )
+            embed.description = "**Belum ada transaksi hari ini.**\n\nJadi yang pertama! 🚀"
         else:
-            leaderboard_text = []
+            leaderboard_lines = []
+            ranking_emoji = {1: "🥇", 2: "🥈", 3: "🥉"}
+            
             for idx, stat in enumerate(daily_stats, 1):
                 try:
                     member = await guild.fetch_member(int(stat['user_id']))
                     name = member.display_name
                 except:
-                    name = f"User {stat['user_id']}"
+                    name = f"Unknown User"
                 
-                # Top 3 get special icons, 4-10 get uniform numbering
-                if idx <= 3:
-                    rank_emoji = ranking_emoji[idx]
+                # Medal untuk top 3
+                if idx in ranking_emoji:
+                    rank = ranking_emoji[idx]
                 else:
-                    rank_emoji = f"▫️ `#{idx}`"
-                leaderboard_text.append(
-                    f"{rank_emoji} **{name}** `Top {idx}`\n"
-                    f"   **{stat['deals_count']}** transaksi • 💵 {format_idr(stat['daily_spend'])}"
+                    rank = f"`#{idx}`"
+                
+                leaderboard_lines.append(
+                    f"{rank} **{name}**\n"
+                    f"└ {stat['deals_count']} deals • 💰 **{format_idr(stat['daily_spend'])}**"
                 )
             
-            embed.description = (
-                f"🏆 **Top {len(daily_stats)} Sultan**\n\n" +
-                "\n\n".join(leaderboard_text)
-            )
+            embed.description = "\n\n".join(leaderboard_lines)
         
-        # Footer dengan info reset (midnight)
-        tomorrow = today + timedelta(days=1)
-        midnight = tomorrow.replace(hour=0, minute=0, second=0, microsecond=0)
-        hours_until_reset = int((midnight - today).total_seconds() / 3600)
-        footer_text = f"🔄 Auto-update setiap 1 jam • Reset: {hours_until_reset} jam lagi"
-        
-        embed.set_footer(text=footer_text, icon_url=guild.icon.url if guild.icon else None)
+        # Footer
+        embed.set_footer(
+            text="🔄 Auto-update setiap 1 jam • Reset tiap midnight",
+            icon_url=guild.icon.url if guild.icon else None
+        )
         
         return embed
     
@@ -5116,11 +5098,11 @@ async def remove_item_autocomplete(
 # --- Slash Command: /daily-leaderboard ---
 @client.tree.command(
     name="daily-leaderboard",
-    description="[OWNER] Setup message leaderboard harian di channel #lb-rich-daily yang akan auto-update setiap 1 jam."
+    description="[OWNER] Setup auto-update leaderboard harian di #lb-rich-daily (refresh setiap 1 jam)"
 )
 @owner_only()
 async def daily_leaderboard(interaction: discord.Interaction):
-    """Setup message leaderboard harian yang auto-update"""
+    """Setup message leaderboard harian dengan auto-update setiap 1 jam"""
     await interaction.response.defer(ephemeral=True)
     
     # Cari channel #lb-rich-daily
@@ -5128,18 +5110,17 @@ async def daily_leaderboard(interaction: discord.Interaction):
     
     if not lb_channel:
         await interaction.followup.send(
-            "❌ Channel `#lb-rich-daily` tidak ditemukan!\n"
-            "Buat channel dengan nama `lb-rich-daily` terlebih dahulu.",
+            "❌ **Channel tidak ditemukan!**\n"
+            "Buat channel dengan nama `#lb-rich-daily` terlebih dahulu.",
             ephemeral=True
         )
         return
     
     try:
-        # Cek apakah sudah ada message leaderboard lama
+        # Hapus message leaderboard lama jika ada
         existing_msg = db.get_leaderboard_message(interaction.guild.id)
         if existing_msg:
             try:
-                # Hapus message lama
                 old_channel = interaction.guild.get_channel(existing_msg['channel_id'])
                 if old_channel:
                     old_message = await old_channel.fetch_message(existing_msg['message_id'])
@@ -5148,31 +5129,84 @@ async def daily_leaderboard(interaction: discord.Interaction):
             except:
                 pass
         
-        # Generate embed leaderboard
-        embed = await client.generate_leaderboard_embed(interaction.guild)
+        # Ambil data daily leaderboard
+        from datetime import datetime as dt
+        daily_stats = db.get_daily_leaderboard(interaction.guild.id, limit=10)
         
-        # Post message baru ke channel
+        # Buat embed baru
+        embed = discord.Embed(
+            title="📊 Daily Leaderboard — Top Sultan Hari Ini",
+            description="",
+            color=0x00D9FF,  # Cyan modern
+            timestamp=dt.now()
+        )
+        
+        # Set thumbnail
+        if interaction.guild.icon:
+            embed.set_thumbnail(url=interaction.guild.icon.url)
+        
+        # Build leaderboard
+        if not daily_stats:
+            embed.description = "**Belum ada transaksi hari ini.**\n\nJadi yang pertama! 🚀"
+        else:
+            leaderboard_lines = []
+            ranking_emoji = {1: "🥇", 2: "🥈", 3: "🥉"}
+            
+            for idx, stat in enumerate(daily_stats, 1):
+                try:
+                    member = await interaction.guild.fetch_member(int(stat['user_id']))
+                    name = member.display_name
+                except:
+                    name = f"Unknown User"
+                
+                # Medal untuk top 3
+                if idx in ranking_emoji:
+                    rank = ranking_emoji[idx]
+                else:
+                    rank = f"`#{idx}`"
+                
+                leaderboard_lines.append(
+                    f"{rank} **{name}**\n"
+                    f"└ {stat['deals_count']} deals • 💰 **{format_idr(stat['daily_spend'])}**"
+                )
+            
+            embed.description = "\n\n".join(leaderboard_lines)
+        
+        # Footer
+        embed.set_footer(
+            text="🔄 Auto-update setiap 1 jam • Reset tiap midnight",
+            icon_url=interaction.guild.icon.url if interaction.guild.icon else None
+        )
+        
+        # Post ke channel
         message = await lb_channel.send(embed=embed)
         
-        # Simpan message ID baru ke database
+        # Simpan message ID ke database
         db.set_leaderboard_message(interaction.guild.id, lb_channel.id, message.id)
         
         await interaction.followup.send(
-            f"✅ Leaderboard berhasil di-setup di {lb_channel.mention}!\n"
-            f"🔄 Message akan auto-update setiap 1 jam.\n"
+            f"✅ **Daily leaderboard berhasil di-setup!**\n\n"
+            f"📍 Channel: {lb_channel.mention}\n"
+            f"🔄 Auto-update: Setiap 1 jam\n"
             f"📊 Message ID: `{message.id}`",
             ephemeral=True
         )
         
-        print(f"✅ Leaderboard setup di {interaction.guild.name} - Channel: {lb_channel.name}")
+        print(f"✅ Daily leaderboard setup: {interaction.guild.name} → {lb_channel.name}")
         
     except discord.Forbidden:
         await interaction.followup.send(
-            f"❌ Bot tidak punya permission untuk kirim message di {lb_channel.mention}!",
+            f"❌ Bot tidak punya permission untuk post di {lb_channel.mention}!",
             ephemeral=True
         )
     except Exception as e:
-        await interaction.followup.send(f"❌ Error: {e}", ephemeral=True)
+        await interaction.followup.send(
+            f"❌ **Error:**\n```{str(e)[:200]}```",
+            ephemeral=True
+        )
+        print(f"❌ Error in /daily-leaderboard: {e}")
+        import traceback
+        traceback.print_exc()
 
 
 # --- Slash Command: /approve-mm ---
