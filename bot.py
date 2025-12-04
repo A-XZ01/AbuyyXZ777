@@ -1904,7 +1904,7 @@ class MyClient(discord.Client):
                 
                 leaderboard_lines.append(
                     f"{rank} **{name}**\n"
-                    f"└ {stat['deals_count']} deals • **{format_idr(stat['daily_spend'])}**"
+                    f"{stat['deals_count']} deals • **{format_idr(stat['daily_spend'])}**"
                 )
             
             embed.description = "\n\n".join(leaderboard_lines)
@@ -3142,12 +3142,12 @@ async def allstats_command(interaction: discord.Interaction):
             
             leaderboard_lines.append(
                 f"{rank} **{name}**\n"
-                f"└ {stat['deals_count']} deals • **{format_idr(stat['total_spend'])}**"
+                f"{stat['deals_count']} deals • **{format_idr(stat['total_spend'])}**"
             )
         
         # Buat embed modern
         embed = discord.Embed(
-            title="👑 All-Time Leaderboard — Top Sultan",
+            title="📊 All-Time Leaderboard — Top Sultan",
             description="\n\n".join(leaderboard_lines),
             color=0xFFD700,  # Gold
             timestamp=dt.now()
@@ -5122,7 +5122,7 @@ async def daily_leaderboard(interaction: discord.Interaction):
                 
                 leaderboard_lines.append(
                     f"{rank} **{name}**\n"
-                    f"└ {stat['deals_count']} deals • **{format_idr(stat['daily_spend'])}**"
+                    f"{stat['deals_count']} deals • **{format_idr(stat['daily_spend'])}**"
                 )
             
             embed.description = "\n\n".join(leaderboard_lines)
