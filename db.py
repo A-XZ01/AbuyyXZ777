@@ -152,13 +152,13 @@ class BotDatabase:
             )
         """)
         
-        # Tabel item_prices: harga items yang bisa diubah dari Discord
+        # Tabel item_prices: harga items dengan base robux untuk rate system
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS item_prices (
                 guild_id TEXT NOT NULL,
                 item_code TEXT NOT NULL,
                 item_name TEXT NOT NULL,
-                price INTEGER NOT NULL,
+                base_robux INTEGER NOT NULL,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 PRIMARY KEY (guild_id, item_code)
             )
@@ -236,6 +236,15 @@ class BotDatabase:
         try:
             cursor.execute("ALTER TABLE tickets ADD COLUMN fee_payer TEXT DEFAULT 'buyer'")
             print("✅ Kolom fee_payer berhasil ditambahkan ke tickets")
+        except sqlite3.OperationalError as e:
+            # Kolom sudah ada, skip
+            if "duplicate column name" not in str(e).lower():
+                print(f"⚠️ ALTER TABLE warning: {e}")
+        
+        # ALTER TABLE untuk tambah kolom rate ke guild_config
+        try:
+            cursor.execute("ALTER TABLE guild_config ADD COLUMN robux_rate INTEGER DEFAULT 90")
+            print("✅ Kolom robux_rate berhasil ditambahkan ke guild_config")
         except sqlite3.OperationalError as e:
             # Kolom sudah ada, skip
             if "duplicate column name" not in str(e).lower():
@@ -1232,5 +1241,108 @@ class BotDatabase:
             'status': row[13],
             'created_at': row[14]
         }
+    
+    # === Rate & Item Price Methods ===
+    
+    def get_robux_rate(self, guild_id: int) -> int:
+        """Get current Robux rate for guild"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT robux_rate FROM guild_config WHERE guild_id = ?
+        """, (str(guild_id),))
+        row = cursor.fetchone()
+        conn.close()
+        return row[0] if row and row[0] else 90  # Default rate 90
+    
+    def set_robux_rate(self, guild_id: int, rate: int):
+        """Set Robux rate for guild"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO guild_config (guild_id, robux_rate, updated_at)
+            VALUES (?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(guild_id) DO UPDATE SET
+                robux_rate = excluded.robux_rate,
+                updated_at = CURRENT_TIMESTAMP
+        """, (str(guild_id), rate))
+        conn.commit()
+        conn.close()
+    
+    def init_default_items(self, guild_id: int):
+        """Initialize default items with base Robux prices"""
+        items = [
+            ('vip_luck', 'VIP + Luck', 445),
+            ('mutations', '+ Mutations', 295),
+            ('advanced_luck', 'Advanced Luck', 545),
+            ('extra_luck', 'Extra Luck', 245),
+            ('small_luck', 'Small Luck', 50),
+            ('double_xp', 'Double XP', 195),
+            ('mini_hoverboat', 'Mini Hoverboat', 225),
+            ('burger_boat', 'Burger Boat', 275),
+            ('hyper_boat_pack', 'Hyper Boat Pack', 999),
+            ('gacha_1x', 'Gacha 1×', 90),
+            ('gacha_5x', 'Gacha 5×', 495),
+            ('princess_parasol', 'Princess Parasol', 899),
+            ('eclipse_katana', 'Eclipse Katana', 899),
+            ('ban_hammer', 'Ban Hammer', 1099),
+            ('binary_edge', 'Binary Edge', 799),
+            ('corruption_edge', 'Corruption Edge', 799),
+        ]
+        
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        for item_code, item_name, base_robux in items:
+            cursor.execute("""
+                INSERT OR IGNORE INTO item_prices (guild_id, item_code, item_name, base_robux)
+                VALUES (?, ?, ?, ?)
+            """, (str(guild_id), item_code, item_name, base_robux))
+        conn.commit()
+        conn.close()
+    
+    def get_all_items(self, guild_id: int) -> List[Dict]:
+        """Get all items with calculated IDR prices"""
+        rate = self.get_robux_rate(guild_id)
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT item_code, item_name, base_robux
+            FROM item_prices
+            WHERE guild_id = ?
+            ORDER BY base_robux DESC
+        """, (str(guild_id),))
+        
+        items = []
+        for row in cursor.fetchall():
+            items.append({
+                'code': row[0],
+                'name': row[1],
+                'robux': row[2],
+                'price_idr': row[2] * rate
+            })
+        conn.close()
+        return items
+    
+    def get_item_price(self, guild_id: int, item_code: str) -> Optional[Dict]:
+        """Get specific item with calculated IDR price"""
+        rate = self.get_robux_rate(guild_id)
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT item_code, item_name, base_robux
+            FROM item_prices
+            WHERE guild_id = ? AND item_code = ?
+        """, (str(guild_id), item_code))
+        row = cursor.fetchone()
+        conn.close()
+        
+        if row:
+            return {
+                'code': row[0],
+                'name': row[1],
+                'robux': row[2],
+                'price_idr': row[2] * rate
+            }
+        return None
     
     # === Testimonial Methods ===

@@ -3341,14 +3341,7 @@ async def allstats_command(interaction: discord.Interaction, page: Optional[int]
 @app_commands.describe(
     item='Pilih item yang ingin dibeli'
 )
-@app_commands.choices(item=[
-    app_commands.Choice(name="Item A - Rp74.000", value="A"),
-    app_commands.Choice(name="Item B - Rp150.000", value="B"),
-    app_commands.Choice(name="Item C - Rp222.000", value="C"),
-    app_commands.Choice(name="Item D - Rp296.000", value="D"),
-    app_commands.Choice(name="Item E - Rp370.000", value="E"),
-])
-async def add_item(interaction: discord.Interaction, item: app_commands.Choice[str]):
+async def add_item(interaction: discord.Interaction, item: str):
     await interaction.response.defer()
     
     ticket = db.get_ticket_by_channel(interaction.channel.id)
@@ -3366,11 +3359,16 @@ async def add_item(interaction: discord.Interaction, item: app_commands.Choice[s
             await interaction.followup.send("❌ Hanya owner ticket yang bisa menambahkan item.", ephemeral=True)
             return
     
-    # Load prices from database
-    item_prices = db.get_item_prices(interaction.guild.id)
+    # Get item details from database
+    item_data = db.get_item_price(interaction.guild.id, item)
     
-    item_name = f"Item {item.value}"
-    unit_price = item_prices.get(item.value, 0)
+    if not item_data:
+        await interaction.followup.send("❌ Item tidak ditemukan.", ephemeral=True)
+        return
+    
+    item_name = item_data['name']
+    unit_price = item_data['price_idr']
+    robux = item_data['robux']
     
     db.add_item_to_ticket(
         ticket_id=ticket['id'],
@@ -3386,8 +3384,8 @@ async def add_item(interaction: discord.Interaction, item: app_commands.Choice[s
     )
     
     confirm_embed.add_field(name="🛍️ Item", value=f"`{item_name}`", inline=True)
+    confirm_embed.add_field(name="💎 Robux", value=f"`{robux} R$`", inline=True)
     confirm_embed.add_field(name="💳 Harga", value=format_idr(unit_price), inline=True)
-    confirm_embed.add_field(name="\u200b", value="\u200b", inline=True)  # Spacer
     
     items = db.get_ticket_items(ticket['id'])
     grand_total = sum(i['amount'] for i in items)
@@ -3411,6 +3409,25 @@ async def add_item(interaction: discord.Interaction, item: app_commands.Choice[s
     confirm_embed.set_footer(text="💡 Tip: Upload screenshot bukti transfer langsung ke channel ini", icon_url=interaction.guild.icon.url if interaction.guild.icon else None)
     
     await interaction.followup.send(embed=confirm_embed)
+
+# Dynamic autocomplete for /add command
+@add_item.autocomplete('item')
+async def add_item_autocomplete(interaction: discord.Interaction, current: str):
+    """Autocomplete untuk item choices berdasarkan database"""
+    items = db.get_all_items(interaction.guild.id)
+    
+    # Filter berdasarkan input user
+    if current:
+        items = [i for i in items if current.lower() in i['name'].lower()]
+    
+    # Return max 25 choices (Discord limit)
+    return [
+        app_commands.Choice(
+            name=f"{item['name']} ({item['robux']} R$ • {format_idr(item['price_idr'])})",
+            value=item['code']
+        )
+        for item in items[:25]
+    ]
 
 
 
@@ -3970,9 +3987,17 @@ async def setup_ticket_channel(interaction: discord.Interaction):
         )
         
         # Kirim instruksi di channel
+        # Initialize items if not exists
+        items = db.get_all_items(interaction.guild.id)
+        if not items:
+            db.init_default_items(interaction.guild.id)
+            items = db.get_all_items(interaction.guild.id)
+        
+        rate = db.get_robux_rate(interaction.guild.id)
+        
         instruction_embed = discord.Embed(
             title="🎫 Open Ticket - Panduan",
-            description="Selamat datang di sistem ticket order!",
+            description=f"Selamat datang! Gift Fish-It Roblox dengan rate **Rp{rate}/Robux**",
             color=discord.Color.blue(),
             timestamp=datetime.now()
         )
@@ -3985,21 +4010,19 @@ async def setup_ticket_channel(interaction: discord.Interaction):
                 "**Contoh:** `AbuyyXZ777`\n\n"
                 "**3.** Bot akan otomatis create private ticket channel untuk Anda\n\n"
                 "**4.** Masuk ke ticket channel dan gunakan `/add` untuk order item\n\n"
-                "**5.** Setelah order selesai, transfer dan `/submit` bukti transfer\n\n"
-                "**6.** Tunggu admin approve → Done!"
+                "**5.** Setelah order selesai, transfer dan `/submit` bukti transfer"
             ),
             inline=False
         )
         
+        # Build item list from database
+        items_text = []
+        for item in items:
+            items_text.append(f"**{item['name']}:** {item['robux']} R$ • {format_idr(item['price_idr'])}")
+        
         instruction_embed.add_field(
-            name="💰 Item & Harga",
-            value=(
-                "**Item A:** Rp74.000\n"
-                "**Item B:** Rp150.000\n"
-                "**Item C:** Rp222.000\n"
-                "**Item D:** Rp296.000\n"
-                "**Item E:** Rp370.000"
-            ),
+            name=f"💎 Item & Harga (Rate: Rp{rate}/Robux)",
+            value="\n".join(items_text),
             inline=False
         )
         
@@ -4016,15 +4039,17 @@ async def setup_ticket_channel(interaction: discord.Interaction):
         )
         
         instruction_embed.add_field(
-            name="⚠️ Penting",
+            name="⚡ Penting",
             value=(
                 "• 1 user hanya bisa punya 1 ticket aktif\n"
-                "• Username game minimal 3 karakter\n"
-                "• Gunakan `/close` untuk tutup ticket\n"
-                "• Button akan tetap ada meski bot restart"
+                "• Upload bukti transfer ASLI (tidak boleh edit)\n"
+                "• Button akan tetap ada meski bot restart\n"
+                "• Gunakan `/add` di ticket untuk order"
             ),
             inline=False
         )
+        
+        instruction_embed.set_footer(text="🎮 Fish-It Roblox Gift Service • Trusted Seller")
         
         instruction_embed.set_footer(text="Klik tombol di bawah untuk mulai!")
         
@@ -4790,6 +4815,143 @@ async def removerole(interaction: discord.Interaction, user: discord.Member, rol
         await interaction.followup.send(f"❌ Error: {e}", ephemeral=True)
 
 
+# --- Slash Command: /set-rate ---
+@client.tree.command(
+    name="set-rate",
+    description="[OWNER] Ubah rate Robux (harga per 1 Robux dalam Rupiah)."
+)
+@app_commands.describe(
+    rate="Rate baru per Robux (contoh: 90 untuk Rp90/Robux)"
+)
+@app_commands.default_permissions(administrator=True)
+@owner_only()
+async def set_rate(interaction: discord.Interaction, rate: int):
+    """Set rate Robux dan auto-update semua harga item"""
+    await interaction.response.defer(ephemeral=True)
+    
+    if rate < 10:
+        await interaction.followup.send("❌ Rate minimal Rp10 per Robux", ephemeral=True)
+        return
+    
+    if rate > 1000:
+        await interaction.followup.send("❌ Rate maksimal Rp1.000 per Robux", ephemeral=True)
+        return
+    
+    # Get old rate
+    old_rate = db.get_robux_rate(interaction.guild.id)
+    
+    # Update rate in database
+    db.set_robux_rate(interaction.guild.id, rate)
+    
+    # Initialize items if not exists
+    items = db.get_all_items(interaction.guild.id)
+    if not items:
+        db.init_default_items(interaction.guild.id)
+        items = db.get_all_items(interaction.guild.id)
+    
+    # Auto-update ticket setup embed
+    setup_data = db.get_ticket_setup_message(interaction.guild.id)
+    
+    if setup_data:
+        try:
+            channel = interaction.guild.get_channel(setup_data['channel_id'])
+            if channel:
+                message = await channel.fetch_message(setup_data['message_id'])
+                
+                # Recreate embed dengan harga baru
+                instruction_embed = discord.Embed(
+                    title="🎫 Open Ticket - Panduan",
+                    description=f"Selamat datang! Gift Fish-It Roblox dengan rate **Rp{rate}/Robux**",
+                    color=discord.Color.blue(),
+                    timestamp=datetime.now()
+                )
+                
+                instruction_embed.add_field(
+                    name="📝 Cara Buka Ticket",
+                    value=(
+                        "**1.** Klik tombol **Create Ticket** di bawah\n\n"
+                        "**2.** Input username game Anda (min 3 karakter)\n"
+                        "**Contoh:** `AbuyyXZ777`\n\n"
+                        "**3.** Bot akan otomatis create private ticket channel untuk Anda\n\n"
+                        "**4.** Masuk ke ticket channel dan gunakan `/add` untuk order item\n\n"
+                        "**5.** Setelah order selesai, transfer dan `/submit` bukti transfer"
+                    ),
+                    inline=False
+                )
+                
+                # Build item list from database
+                items_text = []
+                for item in items:
+                    items_text.append(f"**{item['name']}:** {item['robux']} R$ • {format_idr(item['price_idr'])}")
+                
+                instruction_embed.add_field(
+                    name=f"💎 Item & Harga (Rate: Rp{rate}/Robux)",
+                    value="\n".join(items_text),
+                    inline=False
+                )
+                
+                instruction_embed.add_field(
+                    name="🏦 Bank Transfer",
+                    value=(
+                        "```\n"
+                        "Bank: BCA\n"
+                        "Rekening: 6241530865\n"
+                        "Atas Nama: Aryansyah Saputra\n"
+                        "```"
+                    ),
+                    inline=False
+                )
+                
+                instruction_embed.add_field(
+                    name="⚡ Penting",
+                    value=(
+                        "• 1 user hanya bisa punya 1 ticket aktif\n"
+                        "• Upload bukti transfer ASLI (tidak boleh edit)\n"
+                        "• Button akan tetap ada meski bot restart\n"
+                        "• Gunakan `/add` di ticket untuk order"
+                    ),
+                    inline=False
+                )
+                
+                instruction_embed.set_footer(text="🎮 Fish-It Roblox Gift Service • Trusted Seller")
+                
+                # Update message
+                await message.edit(embed=instruction_embed)
+                
+                await interaction.followup.send(
+                    f"✅ **Rate berhasil diupdate!**\n\n"
+                    f"**Rate Lama:** Rp{old_rate}/Robux\n"
+                    f"**Rate Baru:** Rp{rate}/Robux\n\n"
+                    f"**Perubahan Harga:**\n" +
+                    "\n".join([f"• {item['name']}: {format_idr(item['robux'] * old_rate)} → {format_idr(item['price_idr'])}" for item in items[:5]]) +
+                    f"\n\n📌 Display di {channel.mention} sudah auto-update!",
+                    ephemeral=True
+                )
+        except Exception as e:
+            await interaction.followup.send(
+                f"✅ Rate diupdate ke Rp{rate}/Robux\n\n"
+                f"⚠️ Gagal update display: {e}\n"
+                f"Gunakan `/setup-ticket` ulang untuk refresh display.",
+                ephemeral=True
+            )
+    else:
+        await interaction.followup.send(
+            f"✅ **Rate berhasil diupdate!**\n\n"
+            f"**Rate Lama:** Rp{old_rate}/Robux\n"
+            f"**Rate Baru:** Rp{rate}/Robux\n\n"
+            f"💡 Gunakan `/setup-ticket` untuk setup channel dengan harga baru.",
+            ephemeral=True
+        )
+    
+    # Log action
+    db.log_action(
+        guild_id=interaction.guild.id,
+        user_id=interaction.user.id,
+        action="set_rate",
+        details=f"Rate updated: Rp{old_rate} → Rp{rate} per Robux"
+    )
+
+
 # --- Slash Command: /set-price ---
 @client.tree.command(
     name="set-price",
@@ -4858,8 +5020,7 @@ async def set_price(interaction: discord.Interaction, item: app_commands.Choice[
                         "**Contoh:** `AbuyyXZ777`\n\n"
                         "**3.** Bot akan otomatis create private ticket channel untuk Anda\n\n"
                         "**4.** Masuk ke ticket channel dan gunakan `/add` untuk order item\n\n"
-                        "**5.** Setelah order selesai, transfer dan `/submit` bukti transfer\n\n"
-                        "**6.** Tunggu admin approve → Done!"
+                        "**5.** Setelah order selesai, transfer dan `/submit` bukti transfer"
                     ),
                     inline=False
                 )
