@@ -1887,7 +1887,7 @@ class MyClient(discord.Client):
             embed.description = "**Belum ada transaksi hari ini.**\n\nJadi yang pertama! 🚀"
         else:
             leaderboard_lines = []
-            ranking_emoji = {1: "🥇", 2: "🥈", 3: "🥉"}
+            ranking_emoji = {1: "👑", 2: "⭐", 3: "🔥"}
             
             for idx, stat in enumerate(daily_stats, 1):
                 try:
@@ -1896,7 +1896,7 @@ class MyClient(discord.Client):
                 except:
                     name = f"Unknown User"
                 
-                # Top 1-3 medal, top 4-10 diamond
+                # Top 1-3 special, top 4-10 diamond
                 if idx in ranking_emoji:
                     rank = ranking_emoji[idx]
                 else:
@@ -3124,8 +3124,8 @@ async def allstats_command(interaction: discord.Interaction):
         from datetime import datetime as dt
         leaderboard_lines = []
         
-        # Icon ranking: Top 1-3 medal, Top 4-10 diamond
-        ranking_emoji = {1: "🥇", 2: "🥈", 3: "🥉"}
+        # Icon ranking: Top 1 Crown, Top 2 Star, Top 3 Fire, Top 4-10 Diamond
+        ranking_emoji = {1: "👑", 2: "⭐", 3: "🔥"}
         
         for idx, stat in enumerate(all_stats, 1):
             try:
@@ -3134,7 +3134,7 @@ async def allstats_command(interaction: discord.Interaction):
             except:
                 name = f"Unknown User"
             
-            # Top 1-3 medal, top 4-10 diamond
+            # Top 1-3 special, top 4-10 diamond
             if idx in ranking_emoji:
                 rank = ranking_emoji[idx]
             else:
@@ -5105,7 +5105,7 @@ async def daily_leaderboard(interaction: discord.Interaction):
             embed.description = "**Belum ada transaksi hari ini.**\n\nJadi yang pertama! 🚀"
         else:
             leaderboard_lines = []
-            ranking_emoji = {1: "🥇", 2: "🥈", 3: "🥉"}
+            ranking_emoji = {1: "👑", 2: "⭐", 3: "🔥"}
             
             for idx, stat in enumerate(daily_stats, 1):
                 try:
@@ -5114,7 +5114,7 @@ async def daily_leaderboard(interaction: discord.Interaction):
                 except:
                     name = f"Unknown User"
                 
-                # Top 1-3 medal, top 4-10 diamond
+                # Top 1-3 special, top 4-10 diamond
                 if idx in ranking_emoji:
                     rank = ranking_emoji[idx]
                 else:
