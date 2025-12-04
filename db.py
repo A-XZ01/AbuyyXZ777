@@ -1,6 +1,7 @@
 """
-Database module untuk Discord Bot - SQLite persistence
+Database module untuk Discord Bot - SQLite/PostgreSQL persistence
 Mengelola user stats, guild config, dan backup/restore
+Auto-detect PostgreSQL jika DATABASE_URL tersedia
 """
 import sqlite3
 import json
@@ -8,28 +9,222 @@ import os
 from typing import Optional, Dict, Any, List
 from datetime import datetime
 
+# Auto-detect PostgreSQL
+DATABASE_URL = os.getenv('DATABASE_URL')
+USE_POSTGRES = DATABASE_URL and DATABASE_URL.startswith('postgres')
+
+if USE_POSTGRES:
+    import psycopg2
+    from psycopg2.extras import RealDictCursor
+    # Fix Render PostgreSQL URL format
+    if DATABASE_URL.startswith('postgres://'):
+        DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql://', 1)
+
 
 class BotDatabase:
     def __init__(self, db_path: str):
         self.db_path = db_path
+        self.use_postgres = USE_POSTGRES
+        if self.use_postgres:
+            print("🐘 Using PostgreSQL database")
+        else:
+            print(f"📦 Using SQLite database: {db_path}")
         self.init_db()
     
     def get_connection(self):
-        """Buat koneksi baru ke database dengan timeout"""
-        conn = sqlite3.connect(self.db_path, timeout=30.0)
-        conn.row_factory = sqlite3.Row
-        # Enable WAL mode untuk better concurrency
-        conn.execute('PRAGMA journal_mode=WAL')
-        return conn
+        """Buat koneksi baru ke database (PostgreSQL atau SQLite)"""
+        if self.use_postgres:
+            conn = psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
+            return conn
+        else:
+            conn = sqlite3.connect(self.db_path, timeout=30.0)
+            conn.row_factory = sqlite3.Row
+            # Enable WAL mode untuk better concurrency
+            conn.execute('PRAGMA journal_mode=WAL')
+            return conn
+    
+    def execute(self, query: str, params: tuple = (), fetch=None):
+        """
+        Execute query dengan auto-handling PostgreSQL/SQLite
+        Args:
+            query: SQL query string
+            params: Query parameters
+            fetch: None, 'one', or 'all'
+        Returns:
+            Result rows (dict) atau None
+        """
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        # Convert ? to %s for PostgreSQL
+        if self.use_postgres:
+            query = query.replace('?', '%s')
+        
+        try:
+            cursor.execute(query, params)
+            
+            result = None
+            if fetch == 'one':
+                row = cursor.fetchone()
+                result = dict(row) if row else None
+            elif fetch == 'all':
+                rows = cursor.fetchall()
+                result = [dict(row) for row in rows] if rows else []
+            
+            conn.commit()
+            return result
+        except Exception as e:
+            conn.rollback()
+            raise e
+        finally:
+            conn.close()
     
     def init_db(self):
         """Inisialisasi tabel database"""
         conn = self.get_connection()
         cursor = conn.cursor()
         
-        # Tabel user_stats: menyimpan statistik per user per guild
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS user_stats (
+        if self.use_postgres:
+            # PostgreSQL schema
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS user_stats (
+                    guild_id VARCHAR NOT NULL,
+                    user_id VARCHAR NOT NULL,
+                    deals_completed INTEGER DEFAULT 0,
+                    total_idr_value BIGINT DEFAULT 0,
+                    stats_message_id VARCHAR,
+                    stats_channel_id VARCHAR,
+                    updated_at TIMESTAMP DEFAULT NOW(),
+                    PRIMARY KEY (guild_id, user_id)
+                )
+            """)
+            
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS guild_config (
+                    guild_id VARCHAR PRIMARY KEY,
+                    auto_detect_channels TEXT,
+                    admin_roles TEXT,
+                    currency VARCHAR DEFAULT 'IDR',
+                    auto_detect_regex TEXT,
+                    leaderboard_message_id VARCHAR,
+                    leaderboard_channel_id VARCHAR,
+                    ticket_setup_message_id VARCHAR,
+                    ticket_setup_channel_id VARCHAR,
+                    price_hash TEXT,
+                    updated_at TIMESTAMP DEFAULT NOW()
+                )
+            """)
+            
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS audit_log (
+                    id SERIAL PRIMARY KEY,
+                    guild_id VARCHAR,
+                    user_id VARCHAR,
+                    action VARCHAR,
+                    details TEXT,
+                    timestamp TIMESTAMP DEFAULT NOW()
+                )
+            """)
+            
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS transactions (
+                    id SERIAL PRIMARY KEY,
+                    guild_id VARCHAR NOT NULL,
+                    user_id VARCHAR NOT NULL,
+                    amount BIGINT NOT NULL,
+                    category VARCHAR,
+                    notes TEXT,
+                    recorded_by VARCHAR,
+                    timestamp TIMESTAMP DEFAULT NOW()
+                )
+            """)
+            
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS achievements (
+                    id SERIAL PRIMARY KEY,
+                    guild_id VARCHAR NOT NULL,
+                    user_id VARCHAR NOT NULL,
+                    achievement_type VARCHAR NOT NULL,
+                    achievement_value INTEGER,
+                    unlocked_at TIMESTAMP DEFAULT NOW(),
+                    UNIQUE(guild_id, user_id, achievement_type, achievement_value)
+                )
+            """)
+            
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS tickets (
+                    id SERIAL PRIMARY KEY,
+                    guild_id VARCHAR NOT NULL,
+                    user_id VARCHAR NOT NULL,
+                    channel_id VARCHAR NOT NULL,
+                    ticket_number INTEGER NOT NULL,
+                    game_username VARCHAR,
+                    status VARCHAR DEFAULT 'open',
+                    proof_url TEXT,
+                    approved_by VARCHAR,
+                    approved_at TIMESTAMP,
+                    created_at TIMESTAMP DEFAULT NOW(),
+                    closed_at TIMESTAMP,
+                    closed_by VARCHAR,
+                    ticket_type VARCHAR DEFAULT 'purchase',
+                    seller_id VARCHAR,
+                    seller_username VARCHAR,
+                    item_description TEXT,
+                    deal_price BIGINT,
+                    mm_fee INTEGER DEFAULT 0,
+                    mm_status VARCHAR,
+                    seller_proof_url TEXT,
+                    proof_hash VARCHAR,
+                    transfer_signature VARCHAR,
+                    UNIQUE(guild_id, user_id, status)
+                )
+            """)
+            
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS ticket_items (
+                    id SERIAL PRIMARY KEY,
+                    ticket_id INTEGER NOT NULL,
+                    item_name VARCHAR NOT NULL,
+                    amount INTEGER NOT NULL,
+                    added_at TIMESTAMP DEFAULT NOW()
+                )
+            """)
+            
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS weekly_stats (
+                    guild_id VARCHAR NOT NULL,
+                    user_id VARCHAR NOT NULL,
+                    week_start VARCHAR NOT NULL,
+                    weekly_spend BIGINT DEFAULT 0,
+                    deals_count INTEGER DEFAULT 0,
+                    updated_at TIMESTAMP DEFAULT NOW(),
+                    PRIMARY KEY (guild_id, user_id, week_start)
+                )
+            """)
+            
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS leaderboard_msg (
+                    guild_id VARCHAR PRIMARY KEY,
+                    channel_id VARCHAR,
+                    message_id VARCHAR,
+                    last_updated TIMESTAMP DEFAULT NOW()
+                )
+            """)
+            
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS item_prices (
+                    guild_id VARCHAR NOT NULL,
+                    item_code VARCHAR NOT NULL,
+                    item_name VARCHAR NOT NULL,
+                    base_robux INTEGER NOT NULL,
+                    updated_at TIMESTAMP DEFAULT NOW(),
+                    PRIMARY KEY (guild_id, item_code)
+                )
+            """)
+        else:
+            # SQLite schema (original)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS user_stats (
                 guild_id TEXT NOT NULL,
                 user_id TEXT NOT NULL,
                 deals_completed INTEGER DEFAULT 0,
@@ -165,11 +360,12 @@ class BotDatabase:
         """)
         
         # ALTER TABLE untuk tambah kolom leaderboard (jika belum ada)
-        try:
-            cursor.execute("ALTER TABLE guild_config ADD COLUMN leaderboard_message_id TEXT")
-            cursor.execute("ALTER TABLE guild_config ADD COLUMN leaderboard_channel_id TEXT")
-            print("✅ Kolom leaderboard berhasil ditambahkan ke guild_config")
-        except sqlite3.OperationalError as e:
+        if not self.use_postgres:  # Only for SQLite
+            try:
+                cursor.execute("ALTER TABLE guild_config ADD COLUMN leaderboard_message_id TEXT")
+                cursor.execute("ALTER TABLE guild_config ADD COLUMN leaderboard_channel_id TEXT")
+                print("✅ Kolom leaderboard berhasil ditambahkan ke guild_config")
+            except sqlite3.OperationalError as e:
             # Kolom sudah ada, skip
             if "duplicate column name" not in str(e).lower():
                 print(f"⚠️ ALTER TABLE warning: {e}")
