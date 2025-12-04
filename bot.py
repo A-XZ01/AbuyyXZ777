@@ -194,40 +194,6 @@ class UsernameModal(discord.ui.Modal, title="🎫 Create New Ticket"):
                 inline=False
             )
             
-            welcome_embed.add_field(
-                name="📌 Langkah Selanjutnya",
-                value=(
-                    "**1.** Gunakan `/add` untuk tambah item yang mau dibeli\n"
-                    "**2.** Setelah selesai pilih item, lihat total harga\n"
-                    "**3.** Scan QRIS yang akan diberikan admin\n"
-                    "**4.** Upload bukti pembayaran (screenshot ASLI)\n"
-                    "**5.** Tunggu admin approve\n\n"
-                    "**Note:** Gunakan `/close` kapan saja untuk tutup ticket"
-                ),
-                inline=False
-            )
-            
-            # WARNING: JANGAN CROP/EDIT
-            welcome_embed.add_field(
-                name="⚠️ PENTING: Bukti Transfer",
-                value=(
-                    "🚨 **WAJIB BACA!**\n\n"
-                    "❌ **DILARANG KERAS:**\n"
-                    "• ❌ Crop/potong screenshot\n"
-                    "• ❌ Edit/coret nominal\n"
-                    "• ❌ Blur/mosaic data\n"
-                    "• ❌ Gunakan gambar orang lain\n"
-                    "• ❌ Upload screenshot yang sama 2x\n\n"
-                    "✅ **YANG BENAR:**\n"
-                    "• ✅ Screenshot FULL dari HP/PC\n"
-                    "• ✅ Screenshot ASLI dari app banking\n"
-                    "• ✅ Terlihat JELAS nama, nominal, tanggal\n"
-                    "• ✅ Upload langsung tanpa edit apapun\n\n"
-                    "🔒 Screenshot **EDIT/PALSU** akan **LANGSUNG DITOLAK**!"
-                ),
-                inline=False
-            )
-            
             welcome_embed.set_footer(text=f"Ticket #{ticket_number:04d} • 4-Layer Fraud Detection Active")
             
             await channel.send(f"{mention_text}", embed=welcome_embed)
@@ -279,13 +245,23 @@ class UsernameModal(discord.ui.Modal, title="🎫 Create New Ticket"):
                                 total_amount = item_data['price_idr'] * qty
                                 db.add_ticket_item(self.ticket_id, item_data['code'], item_data['name'], qty, total_amount)
                                 
+                                # Get grand total
+                                all_items = db.get_ticket_items(self.ticket_id)
+                                grand_total = sum(i['amount'] for i in all_items)
+                                
                                 await modal_interaction.response.send_message(
                                     f"✅ **Item ditambahkan!**\n\n"
                                     f"🛍️ **Item:** {item_data['name']}\n"
                                     f"📊 **Quantity:** {qty}x\n"
                                     f"💰 **Harga:** {item_data['robux']} R$ • Rp{item_data['price_idr']:,}/pcs\n"
-                                    f"💵 **Subtotal:** Rp{total_amount:,}\n\n"
-                                    f"📝 Gunakan `/cart` untuk lihat semua item yang sudah dipilih.",
+                                    f"💵 **Subtotal:** Rp{total_amount:,}\n"
+                                    f"💸 **Grand Total:** Rp{grand_total:,}\n\n"
+                                    f"📌 **Langkah Selanjutnya:**\n"
+                                    f"1️⃣ Selesai pilih item? Minta **QRIS** ke admin\n"
+                                    f"2️⃣ Scan QRIS & bayar sesuai Grand Total\n"
+                                    f"3️⃣ Upload **screenshot ASLI** bukti pembayaran\n"
+                                    f"4️⃣ Tunggu admin approve\n\n"
+                                    f"📝 Gunakan `/cart` untuk lihat semua pesanan Anda.",
                                     ephemeral=False
                                 )
                             except ValueError:
