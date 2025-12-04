@@ -3120,24 +3120,24 @@ async def allstats_command(interaction: discord.Interaction, page: Optional[int]
                 )
                 stats_list.append((
                     member.display_name,
-                    stat['deals_completed'],
-                    stat['total_idr_value'],
+                    stat['deals_count'],
+                    stat['weekly_spend'],
                     member
                 ))
             except asyncio.TimeoutError:
                 # Timeout saat fetch member
                 stats_list.append((
                     f"User {stat['user_id']}",
-                    stat['deals_completed'],
-                    stat['total_idr_value'],
+                    stat['deals_count'],
+                    stat['weekly_spend'],
                     None
                 ))
             except Exception:
                 # User mungkin sudah keluar dari server
                 stats_list.append((
                     f"User {stat['user_id']}",
-                    stat['deals_completed'],
-                    stat['total_idr_value'],
+                    stat['deals_count'],
+                    stat['weekly_spend'],
                     None
                     ))
 
