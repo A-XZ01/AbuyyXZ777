@@ -2595,106 +2595,47 @@ async def reset_stats(interaction: discord.Interaction, user: Optional[discord.M
     await interaction.response.defer(ephemeral=True)
 
     if reset_all:
-        # Jangan langsung reset — kirim konfirmasi dengan tombol dan buat backup saat dikonfirmasi
-        class ResetAllConfirmView(discord.ui.View):
-            def __init__(self, initiator_id: int, timeout: int = 60):
-                super().__init__(timeout=timeout)
-                self.initiator_id = initiator_id
+        # HANYA OWNER yang boleh reset_all
+        if not is_owner(interaction):
+            await interaction.followup.send("❌ Hanya Owner yang dapat mereset semua statistik!", ephemeral=True)
+            return
+        
+        # Owner: Langsung reset tanpa konfirmasi
+        # Backup current data dari database
+        all_stats = db.get_all_user_stats(interaction.guild.id)
+        backup_data = {
+            stat['user_id']: {
+                'deals_completed': stat['deals_completed'],
+                'total_idr_value': stat['total_idr_value']
+            }
+            for stat in all_stats
+        }
+        
+        ts = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')
+        backup_dir = os.path.join(DATA_DIR, 'backups')
+        os.makedirs(backup_dir, exist_ok=True)
+        backup_file = os.path.join(backup_dir, f'auto_backup_{interaction.guild.id}_{ts}.json')
+        
+        try:
+            with open(backup_file, 'w', encoding='utf-8') as bf:
+                json.dump(backup_data, bf, ensure_ascii=False, indent=2)
+        except Exception as e:
+            await interaction.followup.send(f"❌ Gagal membuat backup: {e}", ephemeral=True)
+            return
 
-            @discord.ui.button(label="Konfirmasi Reset Semua", style=discord.ButtonStyle.danger)
-            async def confirm(self, interaction_btn: discord.Interaction, button: discord.ui.Button):
-                # Hanya peminta atau owner yang boleh mengkonfirmasi
-                try:
-                    allowed = (interaction_btn.user.id == self.initiator_id) or is_owner(interaction_btn)
-                except Exception:
-                    allowed = False
-                if not allowed:
-                    await interaction_btn.response.send_message("❌ Anda tidak diizinkan melakukan aksi ini.", ephemeral=True)
-                    return
-
-                # Backup current data dari database
-                all_stats = db.get_all_user_stats(interaction_btn.guild.id)
-                backup_data = {
-                    stat['user_id']: {
-                        'deals_completed': stat['deals_completed'],
-                        'total_idr_value': stat['total_idr_value']
-                    }
-                    for stat in all_stats
-                }
-                
-                ts = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')
-                backup_dir = os.path.join(DATA_DIR, 'backups')
-                os.makedirs(backup_dir, exist_ok=True)
-                backup_file = os.path.join(backup_dir, f'user_data_backup_{ts}.json')
-                try:
-                    with open(backup_file, 'w', encoding='utf-8') as bf:
-                        json.dump(backup_data, bf, ensure_ascii=False, indent=2)
-                except Exception as e:
-                    await interaction_btn.response.send_message(f"❌ Gagal membuat backup: {e}", ephemeral=True)
-                    return
-
-                # Clear data menggunakan database
-                try:
-                    db.reset_all_stats(interaction_btn.guild.id)
-                    db.log_action(interaction_btn.guild.id, interaction_btn.user.id, "reset_all_stats", f"Backup: {backup_file}")
-                except Exception as e:
-                    await interaction_btn.response.send_message(f"❌ Gagal mereset data: {e}", ephemeral=True)
-                    return
-
-                # Disable buttons and edit original message
-                for child in list(self.children):
-                    child.disabled = True
-                try:
-                    await interaction_btn.message.edit(content=f"✅ Semua statistik telah di-reset oleh **{interaction_btn.user.display_name}**. Backup disimpan: `{os.path.relpath(backup_file)}`", view=self)
-                except Exception:
-                    pass
-                await interaction_btn.response.send_message("✅ Reset selesai dan backup dibuat.", ephemeral=True)
-
-                # Kirim DM ke semua admin di guild agar mereka tahu backup dibuat
-                try:
-                    guild = interaction_btn.guild or await client.fetch_guild(SERVER_ID)
-                    # Prefer fetch_members if available to ensure full member list
-                    members = []
-                    try:
-                        members = [m async for m in guild.fetch_members(limit=None)]
-                    except Exception:
-                        members = guild.members
-
-                    for m in members:
-                        try:
-                            if m.bot:
-                                continue
-                            if hasattr(m, 'guild_permissions') and m.guild_permissions.administrator:
-                                try:
-                                    await m.send(f"🔔 Backup data user telah dibuat oleh **{interaction_btn.user.display_name}**. File backup: `{os.path.relpath(backup_file)}`")
-                                except Exception:
-                                    # jika gagal kirim DM (DM tertutup), skip
-                                    pass
-                        except Exception:
-                            pass
-                except Exception:
-                    pass
-
-            @discord.ui.button(label="Batal", style=discord.ButtonStyle.secondary)
-            async def cancel(self, interaction_btn: discord.Interaction, button: discord.ui.Button):
-                # Only initiator or admin may cancel
-                try:
-                    allowed = (interaction_btn.user.id == self.initiator_id) or interaction_btn.user.guild_permissions.administrator
-                except Exception:
-                    allowed = False
-                if not allowed:
-                    await interaction_btn.response.send_message("❌ Anda tidak diizinkan membatalkan aksi ini.", ephemeral=True)
-                    return
-                for child in list(self.children):
-                    child.disabled = True
-                try:
-                    await interaction_btn.message.edit(content="❌ Reset dibatalkan.", view=self)
-                except Exception:
-                    pass
-                await interaction_btn.response.send_message("✅ Reset dibatalkan.", ephemeral=True)
-
-        view = ResetAllConfirmView(initiator_id=interaction.user.id)
-        await interaction.followup.send("⚠️ Anda berusaha mereset semua statistik. Tekan **Konfirmasi Reset Semua** untuk membuat backup lalu melanjutkan.", view=view, ephemeral=False)
+        # Reset semua data
+        try:
+            db.reset_all_stats(interaction.guild.id)
+            db.log_action(interaction.guild.id, interaction.user.id, "reset_all_stats", f"Backup: {backup_file}")
+        except Exception as e:
+            await interaction.followup.send(f"❌ Gagal mereset data: {e}", ephemeral=True)
+            return
+        
+        await interaction.followup.send(
+            f"✅ **Semua statistik telah di-reset!**\n"
+            f"📦 Backup disimpan: `{os.path.basename(backup_file)}`",
+            ephemeral=False
+        )
         return
 
     # Reset single user (default: self)
