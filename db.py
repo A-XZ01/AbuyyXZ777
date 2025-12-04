@@ -225,20 +225,20 @@ class BotDatabase:
             # SQLite schema (original)
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS user_stats (
-                guild_id TEXT NOT NULL,
-                user_id TEXT NOT NULL,
-                deals_completed INTEGER DEFAULT 0,
-                total_idr_value INTEGER DEFAULT 0,
-                stats_message_id TEXT,
-                stats_channel_id TEXT,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                PRIMARY KEY (guild_id, user_id)
-            )
-        """)
-        
-        # Tabel guild_config: konfigurasi per server
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS guild_config (
+                    guild_id TEXT NOT NULL,
+                    user_id TEXT NOT NULL,
+                    deals_completed INTEGER DEFAULT 0,
+                    total_idr_value INTEGER DEFAULT 0,
+                    stats_message_id TEXT,
+                    stats_channel_id TEXT,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    PRIMARY KEY (guild_id, user_id)
+                )
+            """)
+            
+            # Tabel guild_config: konfigurasi per server
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS guild_config (
                 guild_id TEXT PRIMARY KEY,
                 auto_detect_channels TEXT,
                 admin_roles TEXT,
@@ -249,115 +249,115 @@ class BotDatabase:
                 ticket_setup_message_id TEXT,
                 ticket_setup_channel_id TEXT,
                 price_hash TEXT,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
-        
-        # Tabel audit_log: log aktivitas penting
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS audit_log (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                guild_id TEXT,
-                user_id TEXT,
-                action TEXT,
-                details TEXT,
-                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
-        
-        # Tabel transactions: detail setiap transaksi
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS transactions (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                guild_id TEXT NOT NULL,
-                user_id TEXT NOT NULL,
-                amount INTEGER NOT NULL,
-                category TEXT,
-                notes TEXT,
-                recorded_by TEXT,
-                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
-        
-        # Tabel achievements: milestone yang dicapai user
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS achievements (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                guild_id TEXT NOT NULL,
-                user_id TEXT NOT NULL,
-                achievement_type TEXT NOT NULL,
-                achievement_value INTEGER,
-                unlocked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE(guild_id, user_id, achievement_type, achievement_value)
-            )
-        """)
-        
-        # Tabel tickets: tracking ticket channels untuk buyer
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS tickets (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                guild_id TEXT NOT NULL,
-                user_id TEXT NOT NULL,
-                channel_id TEXT NOT NULL,
-                ticket_number INTEGER NOT NULL,
-                game_username TEXT,
-                status TEXT DEFAULT 'open',
-                proof_url TEXT,
-                approved_by TEXT,
-                approved_at TIMESTAMP,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                closed_at TIMESTAMP,
-                closed_by TEXT,
-                ticket_type TEXT DEFAULT 'purchase',
-                seller_id TEXT,
-                seller_username TEXT,
-                item_description TEXT,
-                deal_price INTEGER,
-                mm_fee INTEGER DEFAULT 0,
-                mm_status TEXT,
-                seller_proof_url TEXT,
-                proof_hash TEXT,
-                transfer_signature TEXT,
-                UNIQUE(guild_id, user_id, status)
-            )
-        """)
-        
-        # Tabel ticket_items: items yang dipesan dalam ticket
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS ticket_items (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                ticket_id INTEGER NOT NULL,
-                item_name TEXT NOT NULL,
-                amount INTEGER NOT NULL,
-                added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (ticket_id) REFERENCES tickets(id)
-            )
-        """)
-        
-        # Tabel weekly_stats: tracking spending per minggu untuk leaderboard
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS weekly_stats (
-                guild_id TEXT NOT NULL,
-                user_id TEXT NOT NULL,
-                week_start TEXT NOT NULL,
-                weekly_spend INTEGER DEFAULT 0,
-                deals_count INTEGER DEFAULT 0,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                PRIMARY KEY (guild_id, user_id, week_start)
-            )
-        """)
-        
-        # Tabel item_prices: harga items dengan base robux untuk rate system
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS item_prices (
-                guild_id TEXT NOT NULL,
-                item_code TEXT NOT NULL,
-                item_name TEXT NOT NULL,
-                base_robux INTEGER NOT NULL,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                PRIMARY KEY (guild_id, item_code)
-            )
-        """)
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            
+            # Tabel audit_log: log aktivitas penting
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS audit_log (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    guild_id TEXT,
+                    user_id TEXT,
+                    action TEXT,
+                    details TEXT,
+                    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            
+            # Tabel transactions: detail setiap transaksi
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS transactions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    guild_id TEXT NOT NULL,
+                    user_id TEXT NOT NULL,
+                    amount INTEGER NOT NULL,
+                    category TEXT,
+                    notes TEXT,
+                    recorded_by TEXT,
+                    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            
+            # Tabel achievements: milestone yang dicapai user
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS achievements (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    guild_id TEXT NOT NULL,
+                    user_id TEXT NOT NULL,
+                    achievement_type TEXT NOT NULL,
+                    achievement_value INTEGER,
+                    unlocked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(guild_id, user_id, achievement_type, achievement_value)
+                )
+            """)
+            
+            # Tabel tickets: tracking ticket channels untuk buyer
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS tickets (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    guild_id TEXT NOT NULL,
+                    user_id TEXT NOT NULL,
+                    channel_id TEXT NOT NULL,
+                    ticket_number INTEGER NOT NULL,
+                    game_username TEXT,
+                    status TEXT DEFAULT 'open',
+                    proof_url TEXT,
+                    approved_by TEXT,
+                    approved_at TIMESTAMP,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    closed_at TIMESTAMP,
+                    closed_by TEXT,
+                    ticket_type TEXT DEFAULT 'purchase',
+                    seller_id TEXT,
+                    seller_username TEXT,
+                    item_description TEXT,
+                    deal_price INTEGER,
+                    mm_fee INTEGER DEFAULT 0,
+                    mm_status TEXT,
+                    seller_proof_url TEXT,
+                    proof_hash TEXT,
+                    transfer_signature TEXT,
+                    UNIQUE(guild_id, user_id, status)
+                )
+            """)
+            
+            # Tabel ticket_items: items yang dipesan dalam ticket
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS ticket_items (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    ticket_id INTEGER NOT NULL,
+                    item_name TEXT NOT NULL,
+                    amount INTEGER NOT NULL,
+                    added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (ticket_id) REFERENCES tickets(id)
+                )
+            """)
+            
+            # Tabel weekly_stats: tracking spending per minggu untuk leaderboard
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS weekly_stats (
+                    guild_id TEXT NOT NULL,
+                    user_id TEXT NOT NULL,
+                    week_start TEXT NOT NULL,
+                    weekly_spend INTEGER DEFAULT 0,
+                    deals_count INTEGER DEFAULT 0,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    PRIMARY KEY (guild_id, user_id, week_start)
+                )
+            """)
+            
+            # Tabel item_prices: harga items dengan base robux untuk rate system
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS item_prices (
+                    guild_id TEXT NOT NULL,
+                    item_code TEXT NOT NULL,
+                    item_name TEXT NOT NULL,
+                    base_robux INTEGER NOT NULL,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    PRIMARY KEY (guild_id, item_code)
+                )
+            """)
         
         # ALTER TABLE untuk tambah kolom leaderboard (jika belum ada)
         if not self.use_postgres:  # Only for SQLite
