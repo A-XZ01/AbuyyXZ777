@@ -251,8 +251,7 @@ class UsernameModal(discord.ui.Modal, title="🎫 Create New Ticket"):
                     "🔹 Klik dropdown menu\n"
                     "🔹 Pilih item yang diinginkan\n"
                     "🔹 Masukkan jumlah (quantity)\n"
-                    "🔹 Ulangi untuk item lain jika perlu\n\n"
-                    "📝 Gunakan `/cart` untuk lihat semua pesanan Anda"
+                    "🔹 Ulangi untuk item lain jika perlu"
                 ),
                 color=discord.Color.blue()
             )
