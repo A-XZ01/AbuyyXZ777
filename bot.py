@@ -1896,15 +1896,15 @@ class MyClient(discord.Client):
                 except:
                     name = f"Unknown User"
                 
-                # Medal untuk top 3
+                # Top 1-3 medal, top 4-10 diamond
                 if idx in ranking_emoji:
                     rank = ranking_emoji[idx]
                 else:
-                    rank = f"`#{idx}`"
+                    rank = "💎"  # Diamond untuk rank 4-10
                 
                 leaderboard_lines.append(
                     f"{rank} **{name}**\n"
-                    f"└ {stat['deals_count']} deals • 💰 **{format_idr(stat['daily_spend'])}**"
+                    f"└ {stat['deals_count']} deals • **{format_idr(stat['daily_spend'])}**"
                 )
             
             embed.description = "\n\n".join(leaderboard_lines)
@@ -3123,6 +3123,8 @@ async def allstats_command(interaction: discord.Interaction):
         # Build leaderboard data
         from datetime import datetime as dt
         leaderboard_lines = []
+        
+        # Icon ranking: Top 1-3 medal, Top 4-10 diamond
         ranking_emoji = {1: "🥇", 2: "🥈", 3: "🥉"}
         
         for idx, stat in enumerate(all_stats, 1):
@@ -3132,15 +3134,15 @@ async def allstats_command(interaction: discord.Interaction):
             except:
                 name = f"Unknown User"
             
-            # Medal untuk top 3
+            # Top 1-3 medal, top 4-10 diamond
             if idx in ranking_emoji:
                 rank = ranking_emoji[idx]
             else:
-                rank = f"`#{idx}`"
+                rank = "💎"  # Diamond untuk rank 4-10
             
             leaderboard_lines.append(
                 f"{rank} **{name}**\n"
-                f"└ {stat['deals_count']} deals • 💰 **{format_idr(stat['total_spend'])}**"
+                f"└ {stat['deals_count']} deals • **{format_idr(stat['total_spend'])}**"
             )
         
         # Buat embed modern
@@ -3161,19 +3163,25 @@ async def allstats_command(interaction: discord.Interaction):
             icon_url=interaction.guild.icon.url if interaction.guild.icon else None
         )
         
-        # Send to user yang execute command
-        await interaction.followup.send(embed=embed)
-        
-        # Auto-post ke #lb-rich-weekly
+        # HANYA post ke #lb-rich-weekly (tidak kirim ke user)
         lb_weekly_channel = discord.utils.get(interaction.guild.text_channels, name="lb-rich-weekly")
         
         if lb_weekly_channel:
             try:
                 await lb_weekly_channel.send(embed=embed)
+                await interaction.followup.send(
+                    f"✅ Leaderboard berhasil di-post ke {lb_weekly_channel.mention}",
+                    ephemeral=True
+                )
                 print(f"✅ All-time leaderboard posted to #lb-rich-weekly")
             except Exception as e:
+                await interaction.followup.send(f"❌ Error: {e}", ephemeral=True)
                 print(f"⚠️ Failed to post to #lb-rich-weekly: {e}")
         else:
+            await interaction.followup.send(
+                "❌ Channel #lb-rich-weekly tidak ditemukan!",
+                ephemeral=True
+            )
             print(f"⚠️ Channel #lb-rich-weekly not found")
     
     except Exception as e:
@@ -5106,15 +5114,15 @@ async def daily_leaderboard(interaction: discord.Interaction):
                 except:
                     name = f"Unknown User"
                 
-                # Medal untuk top 3
+                # Top 1-3 medal, top 4-10 diamond
                 if idx in ranking_emoji:
                     rank = ranking_emoji[idx]
                 else:
-                    rank = f"`#{idx}`"
+                    rank = "💎"  # Diamond untuk rank 4-10
                 
                 leaderboard_lines.append(
                     f"{rank} **{name}**\n"
-                    f"└ {stat['deals_count']} deals • 💰 **{format_idr(stat['daily_spend'])}**"
+                    f"└ {stat['deals_count']} deals • **{format_idr(stat['daily_spend'])}**"
                 )
             
             embed.description = "\n\n".join(leaderboard_lines)
