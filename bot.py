@@ -3979,24 +3979,17 @@ async def setup_mm_channel(interaction: discord.Interaction):
         # Kirim instruksi di channel
         instruction_embed = discord.Embed(
             title="🤝 Middleman Service - Panduan",
-            description="Selamat datang di layanan Middleman! Kami memfasilitasi transaksi antara buyer dan seller dengan aman.",
+            description="Layanan Middleman untuk transaksi aman antara buyer & seller.",
             color=0xFF9900,  # Orange
             timestamp=datetime.now()
         )
         
         instruction_embed.add_field(
-            name="📝 Cara Menggunakan Middleman",
+            name="📝 Cara Pakai",
             value=(
-                "**1.** Klik tombol **Create Middleman Ticket** di bawah\n\n"
-                "**2.** Isi form:\n"
-                "   • Username Buyer (in-game)\n"
-                "   • Username/ID Seller\n"
-                "   • Item/Jasa yang ditransaksikan\n"
-                "   • Harga yang sudah disepakati\n\n"
-                "**3.** Bot akan create private channel untuk transaksi\n\n"
-                "**4.** Buyer transfer ke rekening middleman\n\n"
-                "**5.** Seller kirim item setelah payment verified\n\n"
-                "**6.** Admin release dana ke seller setelah buyer konfirmasi"
+                "**1.** Klik **Create Middleman Ticket**\n"
+                "**2.** Isi data: Buyer, Seller, Item, Harga\n"
+                "**3.** Buyer transfer → Seller kirim item → Admin release dana"
             ),
             inline=False
         )
@@ -4005,50 +3998,28 @@ async def setup_mm_channel(interaction: discord.Interaction):
             name="💰 Fee Middleman",
             value=(
                 "```\n"
-                "< Rp50.000       : GRATIS\n"
-                "Rp50.000-500K    : Rp2.000\n"
-                "Rp500K-1Juta     : Rp5.000\n"
-                "Rp1Juta-5Juta    : Rp7.000\n"
-                "Rp5Juta-10Juta   : Rp10.000\n"
-                "Rp10Juta+        : Rp15.000\n"
-                "```\n"
-                "*Fee dapat dibayar oleh buyer, seller, atau split 50:50 (>5M)*"
+                "< Rp50K      : GRATIS\n"
+                "Rp50K-500K   : Rp2.000\n"
+                "Rp500K-1Jt   : Rp5.000\n"
+                "Rp1Jt-5Jt    : Rp7.000\n"
+                "Rp5Jt-10Jt   : Rp10.000\n"
+                "Rp10Jt+      : Rp15.000\n"
+                "```"
             ),
             inline=False
         )
         
         instruction_embed.add_field(
-            name="💳 Metode Pembayaran",
+            name="✅ Keuntungan",
             value=(
-                "**QRIS** - Scan & bayar langsung\n"
-                "Admin akan berikan QRIS di ticket Anda"
+                "🛡️ **Aman** - Dana ditahan sampai item diterima\n"
+                "⚡ **Anti-Fraud** - Auto-reject bukti palsu\n"
+                "💸 **Murah** - Gratis untuk transaksi <50K"
             ),
             inline=False
         )
         
-        instruction_embed.add_field(
-            name="✅ Keuntungan Pakai Middleman",
-            value=(
-                "• 🛡️ **Aman** - Dana ditahan sampai seller kirim item\n"
-                "• 🤝 **Terpercaya** - Admin memverifikasi semua transaksi\n"
-                "• ⚡ **4-Layer Fraud Detection** - Bukti palsu auto-reject\n"
-                "• 💸 **Fee Murah** - Mulai dari GRATIS untuk <50K"
-            ),
-            inline=False
-        )
-        
-        instruction_embed.add_field(
-            name="⚠️ Penting",
-            value=(
-                "• Upload bukti transfer ASLI (tidak boleh edit/crop)\n"
-                "• 1 user hanya bisa punya 1 ticket aktif\n"
-                "• Gunakan `/close` untuk membatalkan transaksi\n"
-                "• Button akan tetap ada meski bot restart"
-            ),
-            inline=False
-        )
-        
-        instruction_embed.set_footer(text="Klik tombol di bawah untuk mulai! • Trusted Middleman Service")
+        instruction_embed.set_footer(text="Klik tombol untuk mulai • Trusted Service")
         
         # Send embed with button
         view = CreateMiddlemanButton()
