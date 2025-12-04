@@ -1753,12 +1753,20 @@ class MyClient(discord.Client):
                 print(f"✅ Bot keluar dari server {guild.name}")
         print("⏳ Mencoba sinkronisasi Slash Commands...")
         try:
-            # Global sync
+            # Sync to specific guilds first (faster)
+            for guild in self.guilds:
+                if guild.id in ALLOWED_GUILDS:
+                    synced_guild = await self.tree.sync(guild=guild)
+                    print(f"🎉 {len(synced_guild)} Commands synced to {guild.name}")
+            
+            # Then global sync as backup
             synced = await self.tree.sync()
             print(f"🎉 {len(synced)} Slash Commands synced globally!")
             print("💡 Commands sekarang tersedia di semua server!")
         except Exception as e:
             print(f"❌ Gagal sinkronisasi commands: {e}")
+            import traceback
+            traceback.print_exc()
     
     @tasks.loop(hours=24)
     async def auto_backup_task(self):
@@ -3218,7 +3226,10 @@ async def allstats_command(interaction: discord.Interaction, page: Optional[int]
         
         # Footer
         footer_text = f"📊 All-Time Stats • Page {page}/{total_pages}"
-        embed.set_footer(text=footer_text, icon_url=interaction.guild.icon.url if interaction.guild.icon else None)
+        if interaction.guild.icon:
+            embed.set_footer(text=footer_text, icon_url=interaction.guild.icon.url)
+        else:
+            embed.set_footer(text=footer_text)
         
         # Send to user
         await interaction.followup.send(embed=embed, ephemeral=False)
