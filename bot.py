@@ -4692,13 +4692,12 @@ async def set_rate(interaction: discord.Interaction, rate: int):
     description="[OWNER] Tambah item baru ke katalog"
 )
 @app_commands.describe(
-    code="Kode item (contoh: vip_luck, gacha_1x)",
     name="Nama item (contoh: VIP + Luck)",
     robux="Harga dalam Robux (contoh: 445)"
 )
 @app_commands.default_permissions(administrator=True)
 @owner_only()
-async def add_item_to_catalog(interaction: discord.Interaction, code: str, name: str, robux: int):
+async def add_item_to_catalog(interaction: discord.Interaction, name: str, robux: int):
     """Tambah item baru ke katalog"""
     await interaction.response.defer(ephemeral=True)
     
@@ -4710,10 +4709,15 @@ async def add_item_to_catalog(interaction: discord.Interaction, code: str, name:
         await interaction.followup.send("❌ Harga Robux maksimal 10.000", ephemeral=True)
         return
     
+    # Auto-generate code from name (lowercase, replace spaces with underscore)
+    code = name.lower().replace(" ", "_").replace("+", "").replace("-", "_")
+    # Remove special characters
+    code = ''.join(c for c in code if c.isalnum() or c == '_')
+    
     # Check if code already exists
     existing = db.get_item_price(interaction.guild.id, code)
     if existing:
-        await interaction.followup.send(f"❌ Item dengan kode `{code}` sudah ada!", ephemeral=True)
+        await interaction.followup.send(f"❌ Item dengan nama mirip sudah ada! Gunakan nama berbeda.", ephemeral=True)
         return
     
     # Add item
