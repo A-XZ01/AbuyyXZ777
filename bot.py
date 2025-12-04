@@ -1802,7 +1802,7 @@ class MyClient(discord.Client):
                     value=(
                         "**1.** Klik tombol **Create Ticket** di bawah\n\n"
                         "**2.** Input username game Anda (min 3 karakter)\n"
-                        "**Contoh:** `PlayerXYZ123`\n\n"
+                        "**Contoh:** `AbuyyXZ777`\n\n"
                         "**3.** Bot akan otomatis create private ticket channel untuk Anda\n\n"
                         "**4.** Masuk ke ticket channel dan gunakan `/add` untuk order item\n\n"
                         "**5.** Setelah order selesai, transfer dan `/submit` bukti transfer\n\n"
@@ -3982,7 +3982,7 @@ async def setup_ticket_channel(interaction: discord.Interaction):
             value=(
                 "**1.** Klik tombol **Create Ticket** di bawah\n\n"
                 "**2.** Input username game Anda (min 3 karakter)\n"
-                "**Contoh:** `PlayerXYZ123`\n\n"
+                "**Contoh:** `AbuyyXZ777`\n\n"
                 "**3.** Bot akan otomatis create private ticket channel untuk Anda\n\n"
                 "**4.** Masuk ke ticket channel dan gunakan `/add` untuk order item\n\n"
                 "**5.** Setelah order selesai, transfer dan `/submit` bukti transfer\n\n"
@@ -4855,7 +4855,7 @@ async def set_price(interaction: discord.Interaction, item: app_commands.Choice[
                     value=(
                         "**1.** Klik tombol **Create Ticket** di bawah\n\n"
                         "**2.** Input username game Anda (min 3 karakter)\n"
-                        "**Contoh:** `PlayerXYZ123`\n\n"
+                        "**Contoh:** `AbuyyXZ777`\n\n"
                         "**3.** Bot akan otomatis create private ticket channel untuk Anda\n\n"
                         "**4.** Masuk ke ticket channel dan gunakan `/add` untuk order item\n\n"
                         "**5.** Setelah order selesai, transfer dan `/submit` bukti transfer\n\n"
