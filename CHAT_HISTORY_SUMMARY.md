@@ -1,9 +1,37 @@
 # Discord Bot - Riwayat Perubahan & Setup
 
-**Tanggal:** 4 Desember 2025  
+**Tanggal:** 5 Desember 2025 (Updated)
 **Bot Name:** ASBLOX  
 **Platform:** Render.com (Free Tier)  
 **Repository:** https://github.com/A-XZ01/AbuyyXZ777
+**Database:** SQLite (Fresh Schema - Dec 5, 2025)
+
+---
+
+## 🆕 UPDATE TERBARU (5 Desember 2025)
+
+### **Database Migration - Fresh Start:**
+- ✅ **Hapus database lama** yang corrupt dengan schema outdated
+- ✅ **Database baru** dengan schema lengkap (semua tabel)
+- ✅ **Fresh start** - data kosong, siap production
+- ✅ **PostgreSQL ready** - auto-detect via DATABASE_URL
+
+### **Bug Fixes:**
+1. ✅ Fix `/reset_stats` - Interaction already responded error
+2. ✅ Fix `/reset_stats reset_all:True` - sekarang hapus transactions juga
+3. ✅ Fix `/add-item` - hapus parameter `code`, auto-generate dari name
+4. ✅ Fix database schema - semua tabel dibuat dengan benar
+5. ✅ Fix PostgreSQL support - indentasi SQLite schema, type hints
+
+### **Permission Changes:**
+- ✅ `/reset_stats reset_all:True` - **OWNER ONLY** (instant, no confirmation)
+- ✅ Admin tidak bisa reset all - hanya owner
+
+### **Code Cleanup:**
+- ✅ Hapus unused confirmation buttons di `/reset_stats`
+- ✅ Hapus parameter `code` dari `/add-item`
+- ✅ Fix corrupted type hints di `db.py`
+- ✅ Add psycopg2 type ignore untuk Pylance
 
 ---
 
@@ -247,13 +275,15 @@ GUILD_ID = 1445079009405833299
 
 ---
 
-## 📌 IMPORTANT NOTES
+## 📌 IMPORTANT NOTES (Updated Dec 5)
 
 1. **Auto-Deploy ON** - Tidak perlu manual deploy lagi
 2. **Git Push = Auto Deploy** - Tunggu 2-3 menit
 3. **Keep-Alive Aktif** - Bot tidak sleep
-4. **Database Terpisah** - Local DB ≠ Render DB
+4. **Database Fresh** - SQLite dengan schema lengkap (Dec 5, 2025)
 5. **Server Whitelist** - Hanya ASBLOX server (ID: 1445079009405833299)
+6. **PostgreSQL Ready** - Set DATABASE_URL untuk auto-switch
+7. **No Database in Git** - Database file di-ignore, local only
 
 ---
 
@@ -266,10 +296,39 @@ GUILD_ID = 1445079009405833299
 
 ---
 
-## ✅ COMPLETION CHECKLIST
+## ✅ COMPLETION CHECKLIST (Updated Dec 5)
 
 - [x] Hapus `/weekly-leaderboard`
 - [x] Rename `/setup-leaderboard` → `/daily-leaderboard`
+- [x] Ubah weekly → daily stats
+- [x] Auto-update 2 jam → 1 jam
+- [x] Fix Railway deployment issues
+- [x] Migrate to Render.com
+- [x] Setup keep-alive system
+- [x] Fix `/allstats` double post
+- [x] Remove emoji from title/footer
+- [x] Keep ranking icons (top 1-3, 4-10)
+- [x] Simplify middleman embed
+- [x] Cleanup unused files
+- [x] Test all commands in production
+- [x] Add PostgreSQL support
+- [x] Fix database schema issues
+- [x] Fix `/reset_stats` interaction error
+- [x] Make reset_all owner-only instant
+- [x] Simplify `/add-item` command
+- [x] Fresh database deployment
+
+---
+
+**Last Updated:** 5 Desember 2025, 13:45 WIB  
+**Status:** ✅ Production Ready - Fresh Database  
+**Database:** SQLite (semua tabel lengkap, ready untuk data baru)
+
+**Next Steps:**
+1. Test create ticket - pastikan tidak ada error
+2. Test `/add-item` dengan parameter baru
+3. Monitor bot di production
+4. (Optional) Migrate ke PostgreSQL untuk data permanen
 - [x] Ubah weekly → daily stats
 - [x] Auto-update 2 jam → 1 jam
 - [x] Fix Railway deployment issues
