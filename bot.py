@@ -1872,7 +1872,7 @@ class MyClient(discord.Client):
         
         # Buat embed modern
         embed = discord.Embed(
-            title="💎 Daily Leaderboard — Top Sultan Hari Ini",
+            title="Daily Leaderboard — Top Sultan Hari Ini",
             description="",
             color=0x00D9FF,  # Cyan modern
             timestamp=dt.now()
@@ -1884,10 +1884,9 @@ class MyClient(discord.Client):
         
         # Build leaderboard
         if not daily_stats:
-            embed.description = "**Belum ada transaksi hari ini.**\n\nJadi yang pertama! 🚀"
+            embed.description = "**Belum ada transaksi hari ini.**\n\nJadi yang pertama!"
         else:
             leaderboard_lines = []
-            ranking_emoji = {1: "👑", 2: "⭐", 3: "🔥"}
             
             for idx, stat in enumerate(daily_stats, 1):
                 try:
@@ -1896,14 +1895,8 @@ class MyClient(discord.Client):
                 except:
                     name = f"Unknown User"
                 
-                # Top 1-3 special, top 4-10 diamond
-                if idx in ranking_emoji:
-                    rank = ranking_emoji[idx]
-                else:
-                    rank = "💎"  # Diamond untuk rank 4-10
-                
                 leaderboard_lines.append(
-                    f"{rank} **{name}**\n"
+                    f"`#{idx}` **{name}**\n"
                     f"{stat['deals_count']} deals • **{format_idr(stat['daily_spend'])}**"
                 )
             
@@ -3124,9 +3117,6 @@ async def allstats_command(interaction: discord.Interaction):
         from datetime import datetime as dt
         leaderboard_lines = []
         
-        # Icon ranking: Top 1 Crown, Top 2 Star, Top 3 Fire, Top 4-10 Diamond
-        ranking_emoji = {1: "👑", 2: "⭐", 3: "🔥"}
-        
         for idx, stat in enumerate(all_stats, 1):
             try:
                 member = await interaction.guild.fetch_member(int(stat['user_id']))
@@ -3134,20 +3124,14 @@ async def allstats_command(interaction: discord.Interaction):
             except:
                 name = f"Unknown User"
             
-            # Top 1-3 special, top 4-10 diamond
-            if idx in ranking_emoji:
-                rank = ranking_emoji[idx]
-            else:
-                rank = "💎"  # Diamond untuk rank 4-10
-            
             leaderboard_lines.append(
-                f"{rank} **{name}**\n"
+                f"`#{idx}` **{name}**\n"
                 f"{stat['deals_count']} deals • **{format_idr(stat['total_spend'])}**"
             )
         
         # Buat embed modern
         embed = discord.Embed(
-            title="📊 All-Time Leaderboard — Top Sultan",
+            title="All-Time Leaderboard — Top Sultan",
             description="\n\n".join(leaderboard_lines),
             color=0xFFD700,  # Gold
             timestamp=dt.now()
@@ -3159,7 +3143,7 @@ async def allstats_command(interaction: discord.Interaction):
         
         # Footer
         embed.set_footer(
-            text=f"📈 Total {len(all_stats)} Sultan • All-Time Stats",
+            text=f"Total {len(all_stats)} Sultan • All-Time Stats",
             icon_url=interaction.guild.icon.url if interaction.guild.icon else None
         )
         
@@ -5061,7 +5045,7 @@ async def daily_leaderboard(interaction: discord.Interaction):
         
         # Buat embed baru
         embed = discord.Embed(
-            title="💎 Daily Leaderboard — Top Sultan Hari Ini",
+            title="Daily Leaderboard — Top Sultan Hari Ini",
             description="",
             color=0x00D9FF,  # Cyan modern
             timestamp=dt.now()
@@ -5073,10 +5057,9 @@ async def daily_leaderboard(interaction: discord.Interaction):
         
         # Build leaderboard
         if not daily_stats:
-            embed.description = "**Belum ada transaksi hari ini.**\n\nJadi yang pertama! 🚀"
+            embed.description = "**Belum ada transaksi hari ini.**\n\nJadi yang pertama!"
         else:
             leaderboard_lines = []
-            ranking_emoji = {1: "👑", 2: "⭐", 3: "🔥"}
             
             for idx, stat in enumerate(daily_stats, 1):
                 try:
@@ -5085,14 +5068,8 @@ async def daily_leaderboard(interaction: discord.Interaction):
                 except:
                     name = f"Unknown User"
                 
-                # Top 1-3 special, top 4-10 diamond
-                if idx in ranking_emoji:
-                    rank = ranking_emoji[idx]
-                else:
-                    rank = "💎"  # Diamond untuk rank 4-10
-                
                 leaderboard_lines.append(
-                    f"{rank} **{name}**\n"
+                    f"`#{idx}` **{name}**\n"
                     f"{stat['deals_count']} deals • **{format_idr(stat['daily_spend'])}**"
                 )
             
@@ -5100,7 +5077,7 @@ async def daily_leaderboard(interaction: discord.Interaction):
         
         # Footer
         embed.set_footer(
-            text="🔄 Auto-update setiap 1 jam • Reset tiap midnight",
+            text="Auto-update setiap 1 jam • Reset tiap midnight",
             icon_url=interaction.guild.icon.url if interaction.guild.icon else None
         )
         
