@@ -170,8 +170,27 @@ class UsernameModal(discord.ui.Modal, title="🎫 Create New Ticket"):
                 mention_text += " ".join(admin_mentions)
             
             welcome_embed.add_field(
-                name="👥 Admin/Owner",
+                name="👉 Admin/Owner",
                 value=f"{mention_text}\n*Admin akan dinotifikasi saat bukti transfer dikirim*",
+                inline=False
+            )
+            
+            # Get all items from database
+            items = db.get_all_items(interaction.guild.id)
+            if not items:
+                db.init_default_items(interaction.guild.id)
+                items = db.get_all_items(interaction.guild.id)
+            
+            rate = db.get_robux_rate(interaction.guild.id)
+            
+            # Build item list
+            items_text = []
+            for item in items:
+                items_text.append(f"**{item['name']}:** {item['robux']} R$ • Rp{item['price_idr']:,}")
+            
+            welcome_embed.add_field(
+                name=f"💎 Item & Harga (Rate: Rp{rate}/Robux)",
+                value="\n".join(items_text),
                 inline=False
             )
             
@@ -3913,21 +3932,17 @@ async def setup_ticket_channel(interaction: discord.Interaction):
                 "**1.** Klik tombol **Create Ticket** di bawah\n\n"
                 "**2.** Input username game Anda (min 3 karakter)\n"
                 "**Contoh:** `AbuyyXZ777`\n\n"
-                "**3.** Bot akan otomatis create private ticket channel untuk Anda\n\n"
-                "**4.** Masuk ke ticket channel dan gunakan `/add` untuk order item\n\n"
-                "**5.** Setelah order selesai, transfer dan `/submit` bukti transfer"
+                "**3.** Bot akan create private ticket channel\n\n"
+                "**4.** Lihat list item & harga di ticket channel\n\n"
+                "**5.** Gunakan `/add` untuk order item\n\n"
+                "**6.** Upload bukti pembayaran (auto-detect)"
             ),
             inline=False
         )
         
-        # Build item list from database
-        items_text = []
-        for item in items:
-            items_text.append(f"**{item['name']}:** {item['robux']} R$ • {format_idr(item['price_idr'])}")
-        
         instruction_embed.add_field(
-            name=f"💎 Item & Harga (Rate: Rp{rate}/Robux)",
-            value="\n".join(items_text),
+            name="💳 Pembayaran",
+            value="Admin akan berikan **QRIS** di ticket Anda",
             inline=False
         )
         
@@ -4828,6 +4843,282 @@ async def set_rate(interaction: discord.Interaction, rate: int):
         action="set_rate",
         details=f"Rate updated: Rp{old_rate} → Rp{rate} per Robux"
     )
+
+
+# --- Slash Command: /add-item ---
+@client.tree.command(
+    name="add-item",
+    description="[OWNER] Tambah item baru ke katalog"
+)
+@app_commands.describe(
+    code="Kode item (contoh: vip_luck, gacha_1x)",
+    name="Nama item (contoh: VIP + Luck)",
+    robux="Harga dalam Robux (contoh: 445)"
+)
+@app_commands.default_permissions(administrator=True)
+@owner_only()
+async def add_item_to_catalog(interaction: discord.Interaction, code: str, name: str, robux: int):
+    """Tambah item baru ke katalog"""
+    await interaction.response.defer(ephemeral=True)
+    
+    if robux < 1:
+        await interaction.followup.send("❌ Harga Robux minimal 1", ephemeral=True)
+        return
+    
+    if robux > 10000:
+        await interaction.followup.send("❌ Harga Robux maksimal 10.000", ephemeral=True)
+        return
+    
+    # Check if code already exists
+    existing = db.get_item_price(interaction.guild.id, code)
+    if existing:
+        await interaction.followup.send(f"❌ Item dengan kode `{code}` sudah ada!", ephemeral=True)
+        return
+    
+    # Add item
+    conn = db.get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT INTO item_prices (guild_id, item_code, item_name, base_robux)
+        VALUES (?, ?, ?, ?)
+    """, (str(interaction.guild.id), code, name, robux))
+    conn.commit()
+    conn.close()
+    
+    # Get price with current rate
+    rate = db.get_robux_rate(interaction.guild.id)
+    price_idr = robux * rate
+    
+    # Auto-update setup-ticket embed if exists
+    setup_data = db.get_ticket_setup_message(interaction.guild.id)
+    
+    if setup_data:
+        try:
+            channel = interaction.guild.get_channel(setup_data['channel_id'])
+            if channel:
+                message = await channel.fetch_message(setup_data['message_id'])
+                
+                # Get all items
+                items = db.get_all_items(interaction.guild.id)
+                
+                # Recreate embed
+                instruction_embed = discord.Embed(
+                    title="🎫 Open Ticket - Panduan",
+                    description=f"Selamat datang! Gift Fish-It Roblox dengan rate **Rp{rate}/Robux**",
+                    color=discord.Color.blue(),
+                    timestamp=datetime.now()
+                )
+                
+                instruction_embed.add_field(
+                    name="📝 Cara Buka Ticket",
+                    value=(
+                        "**1.** Klik tombol **Create Ticket** di bawah\n\n"
+                        "**2.** Input username game Anda (min 3 karakter)\n"
+                        "**Contoh:** `AbuyyXZ777`\n\n"
+                        "**3.** Bot akan create private ticket channel\n\n"
+                        "**4.** Lihat list item & harga di ticket channel\n\n"
+                        "**5.** Gunakan `/add` untuk order item\n\n"
+                        "**6.** Upload bukti pembayaran (auto-detect)"
+                    ),
+                    inline=False
+                )
+                
+                instruction_embed.add_field(
+                    name="💳 Pembayaran",
+                    value="Admin akan berikan **QRIS** di ticket Anda",
+                    inline=False
+                )
+                
+                instruction_embed.add_field(
+                    name="⚡ Penting",
+                    value=(
+                        "• 1 user hanya bisa punya 1 ticket aktif\n"
+                        "• Upload bukti transfer ASLI (tidak boleh edit)\n"
+                        "• Button akan tetap ada meski bot restart\n"
+                        "• Gunakan `/add` di ticket untuk order"
+                    ),
+                    inline=False
+                )
+                
+                instruction_embed.set_footer(text="🎮 Fish-It Roblox Gift Service • Trusted Seller")
+                
+                await message.edit(embed=instruction_embed)
+                
+                await interaction.followup.send(
+                    f"✅ **Item berhasil ditambahkan!**\n\n"
+                    f"**Kode:** `{code}`\n"
+                    f"**Nama:** {name}\n"
+                    f"**Harga:** {robux} R$ • {format_idr(price_idr)}\n\n"
+                    f"📌 Display di #open-ticket sudah auto-update!\n"
+                    f"💡 Total item sekarang: {len(items)}",
+                    ephemeral=True
+                )
+        except Exception as e:
+            await interaction.followup.send(
+                f"✅ Item **{name}** berhasil ditambahkan ({robux} R$ • {format_idr(price_idr)})\n\n"
+                f"⚠️ Gagal update display: {e}",
+                ephemeral=True
+            )
+    else:
+        await interaction.followup.send(
+            f"✅ **Item berhasil ditambahkan!**\n\n"
+            f"**Kode:** `{code}`\n"
+            f"**Nama:** {name}\n"
+            f"**Harga:** {robux} R$ • {format_idr(price_idr)}",
+            ephemeral=True
+        )
+    
+    # Log action
+    db.log_action(
+        guild_id=interaction.guild.id,
+        user_id=interaction.user.id,
+        action="add_item",
+        details=f"Added: {name} ({robux} R$)"
+    )
+
+
+# --- Slash Command: /remove-item ---
+@client.tree.command(
+    name="remove-item",
+    description="[OWNER] Hapus item dari katalog"
+)
+@app_commands.describe(
+    item="Pilih item yang akan dihapus"
+)
+@app_commands.default_permissions(administrator=True)
+@owner_only()
+async def remove_item_from_catalog(interaction: discord.Interaction, item: str):
+    """Hapus item dari katalog"""
+    await interaction.response.defer(ephemeral=True)
+    
+    # Get item data
+    item_data = db.get_item_price(interaction.guild.id, item)
+    
+    if not item_data:
+        await interaction.followup.send("❌ Item tidak ditemukan.", ephemeral=True)
+        return
+    
+    # Delete item
+    conn = db.get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        DELETE FROM item_prices 
+        WHERE guild_id = ? AND item_code = ?
+    """, (str(interaction.guild.id), item))
+    conn.commit()
+    conn.close()
+    
+    # Auto-update setup-ticket embed if exists
+    setup_data = db.get_ticket_setup_message(interaction.guild.id)
+    
+    if setup_data:
+        try:
+            channel = interaction.guild.get_channel(setup_data['channel_id'])
+            if channel:
+                message = await channel.fetch_message(setup_data['message_id'])
+                
+                # Get remaining items
+                items = db.get_all_items(interaction.guild.id)
+                rate = db.get_robux_rate(interaction.guild.id)
+                
+                # Recreate embed
+                instruction_embed = discord.Embed(
+                    title="🎫 Open Ticket - Panduan",
+                    description=f"Selamat datang! Gift Fish-It Roblox dengan rate **Rp{rate}/Robux**",
+                    color=discord.Color.blue(),
+                    timestamp=datetime.now()
+                )
+                
+                instruction_embed.add_field(
+                    name="📝 Cara Buka Ticket",
+                    value=(
+                        "**1.** Klik tombol **Create Ticket** di bawah\n\n"
+                        "**2.** Input username game Anda (min 3 karakter)\n"
+                        "**Contoh:** `AbuyyXZ777`\n\n"
+                        "**3.** Bot akan create private ticket channel\n\n"
+                        "**4.** Lihat list item & harga di ticket channel\n\n"
+                        "**5.** Gunakan `/add` untuk order item\n\n"
+                        "**6.** Upload bukti pembayaran (auto-detect)"
+                    ),
+                    inline=False
+                )
+                
+                instruction_embed.add_field(
+                    name="💳 Pembayaran",
+                    value="Admin akan berikan **QRIS** di ticket Anda",
+                    inline=False
+                )
+                
+                instruction_embed.add_field(
+                    name="⚡ Penting",
+                    value=(
+                        "• 1 user hanya bisa punya 1 ticket aktif\n"
+                        "• Upload bukti transfer ASLI (tidak boleh edit)\n"
+                        "• Button akan tetap ada meski bot restart\n"
+                        "• Gunakan `/add` di ticket untuk order"
+                    ),
+                    inline=False
+                )
+                
+                instruction_embed.set_footer(text="🎮 Fish-It Roblox Gift Service • Trusted Seller")
+                
+                await message.edit(embed=instruction_embed)
+                
+                await interaction.followup.send(
+                    f"✅ **Item berhasil dihapus!**\n\n"
+                    f"**Nama:** {item_data['name']}\n"
+                    f"**Harga:** {item_data['robux']} R$ • {format_idr(item_data['price_idr'])}\n\n"
+                    f"📌 Display di #open-ticket sudah auto-update!\n"
+                    f"💡 Total item sekarang: {len(items)}",
+                    ephemeral=True
+                )
+        except Exception as e:
+            await interaction.followup.send(
+                f"✅ Item **{item_data['name']}** berhasil dihapus\n\n"
+                f"⚠️ Gagal update display: {e}",
+                ephemeral=True
+            )
+    else:
+        await interaction.followup.send(
+            f"✅ **Item berhasil dihapus!**\n\n"
+            f"**Nama:** {item_data['name']}\n"
+            f"**Harga:** {item_data['robux']} R$ • {format_idr(item_data['price_idr'])}",
+            ephemeral=True
+        )
+    
+    # Log action
+    db.log_action(
+        guild_id=interaction.guild.id,
+        user_id=interaction.user.id,
+        action="remove_item",
+        details=f"Removed: {item_data['name']} ({item_data['robux']} R$)"
+    )
+
+
+@remove_item_from_catalog.autocomplete('item')
+async def remove_item_autocomplete(
+    interaction: discord.Interaction,
+    current: str,
+) -> List[app_commands.Choice[str]]:
+    """Autocomplete untuk /remove-item"""
+    try:
+        items = db.get_all_items(interaction.guild.id)
+        
+        # Filter berdasarkan input user
+        if current:
+            items = [item for item in items if current.lower() in item['name'].lower()]
+        
+        # Return max 25 items
+        return [
+            app_commands.Choice(
+                name=f"{item['name']} ({item['robux']} R$ • Rp{item['price_idr']:,})",
+                value=item['code']
+            )
+            for item in items[:25]
+        ]
+    except Exception as e:
+        print(f"Error in autocomplete: {e}")
+        return []
 
 
 # --- Slash Command: /setup-leaderboard ---
