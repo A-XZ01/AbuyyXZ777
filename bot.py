@@ -223,57 +223,7 @@ class UsernameModal(discord.ui.Modal, title="🎫 Create New Ticket"):
                         await interaction.response.send_message("❌ Item tidak ditemukan.", ephemeral=True)
                         return
                     
-                    # Create modal untuk input quantity
-                    class QuantityModal(discord.ui.Modal):
-                        def __init__(self, item_data: dict, ticket_id: int):
-                            super().__init__(title=f"📊 Jumlah: {item_data['name']}")
-                            self.item_data = item_data
-                            self.ticket_id = ticket_id
-                            
-                            # Add TextInput to modal
-                            self.quantity_input = discord.ui.TextInput(
-                                label="Quantity",
-                                placeholder="Masukkan jumlah (1-5)",
-                                min_length=1,
-                                max_length=1,
-                                required=True,
-                                style=discord.TextStyle.short
-                            )
-                            self.add_item(self.quantity_input)
-                        
-                        async def on_submit(self, modal_interaction: discord.Interaction):
-                            try:
-                                qty = int(self.quantity_input.value)
-                                if qty < 1 or qty > 5:
-                                    await modal_interaction.response.send_message("❌ Quantity harus 1-5", ephemeral=True)
-                                    return
-                                
-                                # Add item to ticket
-                                total_amount = self.item_data['price_idr'] * qty
-                                db.add_ticket_item(self.ticket_id, self.item_data['code'], self.item_data['name'], qty, total_amount)
-                                
-                                # Get grand total
-                                all_items = db.get_ticket_items(self.ticket_id)
-                                grand_total = sum(i['amount'] for i in all_items)
-                                
-                                await modal_interaction.response.send_message(
-                                    f"✅ **Item ditambahkan!**\n\n"
-                                    f"🛍️ **Item:** {self.item_data['name']}\n"
-                                    f"📊 **Quantity:** {qty}x\n"
-                                    f"💰 **Harga:** {self.item_data['robux']} R$ • Rp{self.item_data['price_idr']:,}/pcs\n"
-                                    f"💵 **Subtotal:** Rp{total_amount:,}\n"
-                                    f"💸 **Grand Total:** Rp{grand_total:,}\n\n"
-                                    f"📌 **Langkah Selanjutnya:**\n"
-                                    f"1️⃣ Selesai pilih item? Minta **QRIS** ke admin\n"
-                                    f"2️⃣ Scan QRIS & bayar sesuai Grand Total\n"
-                                    f"3️⃣ Upload **screenshot ASLI** bukti pembayaran\n"
-                                    f"4️⃣ Tunggu admin approve\n\n"
-                                    f"📝 Gunakan `/cart` untuk lihat semua pesanan Anda.",
-                                    ephemeral=False
-                                )
-                            except ValueError:
-                                await modal_interaction.response.send_message("❌ Quantity harus angka!", ephemeral=True)
-                    
+                    # Use module-level QuantityModal class (no longer nested)
                     await interaction.response.send_modal(QuantityModal(item_data, self.ticket_id))
             
             # Build dynamic options dari database
@@ -351,6 +301,105 @@ async def delete_message_after_delay(message, delay_seconds):
         await message.delete()
     except:
         pass  # Ignore jika message sudah dihapus
+
+
+class QuantityModal(discord.ui.Modal):
+    """Modal untuk input jumlah item - didefinisikan di module level"""
+    def __init__(self, item_data: dict, ticket_id: int):
+        super().__init__(title=f"📊 Jumlah: {item_data['name']}")
+        self.item_data = item_data
+        self.ticket_id = ticket_id
+        
+        # Create TextInput instance
+        self.quantity_input = discord.ui.TextInput(
+            label="Quantity",
+            placeholder="Masukkan jumlah (1-5)",
+            min_length=1,
+            max_length=1,
+            required=True,
+            style=discord.TextStyle.short
+        )
+        self.add_item(self.quantity_input)
+    
+    async def on_submit(self, modal_interaction: discord.Interaction):
+        """Handle quantity modal submit"""
+        await modal_interaction.response.defer(ephemeral=True)
+        
+        try:
+            qty = int(self.quantity_input.value)
+            
+            if qty < 1 or qty > 5:
+                await modal_interaction.followup.send(
+                    "❌ Quantity harus antara 1-5!",
+                    ephemeral=True
+                )
+                return
+            
+            # Calculate total
+            price = self.item_data['price_idr']
+            total = price * qty
+            
+            # Add item to ticket
+            db.add_ticket_item(
+                ticket_id=self.ticket_id,
+                item_code=self.item_data['code'],
+                item_name=self.item_data['name'],
+                robux_amount=self.item_data['robux'],
+                price_per_item=price,
+                quantity=qty,
+                total_price=total
+            )
+            
+            # Get updated ticket items
+            ticket_items = db.get_ticket_items(self.ticket_id)
+            grand_total = sum(item['total_price'] for item in ticket_items)
+            
+            # Build item list
+            items_text = []
+            for item in ticket_items:
+                items_text.append(
+                    f"• **{item['item_name']}** x{item['quantity']} = Rp{item['total_price']:,}"
+                )
+            
+            embed = discord.Embed(
+                title="✅ Item berhasil ditambahkan!",
+                description=f"**{self.item_data['name']}** x{qty} = Rp{total:,}",
+                color=discord.Color.green()
+            )
+            
+            embed.add_field(
+                name="📋 Keranjang Belanja",
+                value="\n".join(items_text),
+                inline=False
+            )
+            
+            embed.add_field(
+                name="💰 Grand Total",
+                value=f"**Rp{grand_total:,}**",
+                inline=False
+            )
+            
+            embed.add_field(
+                name="📸 Langkah Selanjutnya",
+                value="Silakan **scan QRIS** yang sudah dikirim sebelumnya, lalu kirim **bukti transfer** di sini!",
+                inline=False
+            )
+            
+            await modal_interaction.followup.send(embed=embed, ephemeral=True)
+            
+        except ValueError:
+            await modal_interaction.followup.send(
+                "❌ Input tidak valid. Masukkan angka 1-5.",
+                ephemeral=True
+            )
+        except Exception as e:
+            print(f"❌ Error in QuantityModal.on_submit: {e}")
+            import traceback
+            traceback.print_exc()
+            await modal_interaction.followup.send(
+                f"❌ Terjadi error: {e}",
+                ephemeral=True
+            )
 
 
 class CreateTicketButton(discord.ui.View):
