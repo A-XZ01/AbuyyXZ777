@@ -180,13 +180,8 @@ class UsernameModal(discord.ui.Modal, title="🎫 Create New Ticket"):
                 value=(
                     "**1.** Gunakan `/add` untuk tambah item yang mau dibeli\n"
                     "**2.** Setelah selesai pilih item, lihat total harga\n"
-                    "**3.** Transfer ke:\n"
-                    "```\n"
-                    "Bank: BCA\n"
-                    "Rekening: 6241530865\n"
-                    "Atas Nama: Aryansyah Saputra\n"
-                    "```\n"
-                    "**4.** Upload bukti transfer (screenshot ASLI)\n"
+                    "**3.** Scan QRIS yang akan diberikan admin\n"
+                    "**4.** Upload bukti pembayaran (screenshot ASLI)\n"
                     "**5.** Tunggu admin approve\n\n"
                     "**Note:** Gunakan `/close` kapan saja untuk tutup ticket"
                 ),
@@ -607,14 +602,10 @@ class MiddlemanModal(discord.ui.Modal, title="🤝 Create Middleman Ticket"):
             )
             
             welcome_embed.add_field(
-                name="🏦 Rekening Middleman",
+                name="💳 Pembayaran",
                 value=(
-                    "```\n"
-                    "Bank: BCA\n"
-                    "Rekening: 6241530865\n"
-                    "Atas Nama: Aryansyah Saputra\n"
-                    "```\n"
-                    f"**Transfer:** Rp{total_payment:,}"
+                    f"**Total Transfer:** Rp{total_payment:,}\n\n"
+                    "Admin akan memberikan QRIS untuk pembayaran."
                 ),
                 inline=False
             )
@@ -1824,29 +1815,17 @@ class MyClient(discord.Client):
                 )
                 
                 instruction_embed.add_field(
-                    name="🏦 Bank Transfer",
-                    value=(
-                        "```\n"
-                        "Bank: BCA\n"
-                        "Rekening: 6241530865\n"
-                        "Atas Nama: Aryansyah Saputra\n"
-                        "```"
-                    ),
-                    inline=False
-                )
-                
-                instruction_embed.add_field(
-                    name="⚠️ Penting",
+                    name="⚡ Penting",
                     value=(
                         "• 1 user hanya bisa punya 1 ticket aktif\n"
-                        "• Username game minimal 3 karakter\n"
-                        "• Gunakan `/close` untuk tutup ticket\n"
-                        "• Button akan tetap ada meski bot restart"
+                        "• Upload bukti transfer ASLI (tidak boleh edit)\n"
+                        "• Button akan tetap ada meski bot restart\n"
+                        "• Gunakan `/add` di ticket untuk order"
                     ),
                     inline=False
                 )
                 
-                instruction_embed.set_footer(text="Klik tombol di bawah untuk mulai! • Auto-updated")
+                instruction_embed.set_footer(text="🎮 Fish-It Roblox Gift Service • Auto-updated")
                 
                 # Update message
                 await message.edit(embed=instruction_embed)
@@ -4027,18 +4006,6 @@ async def setup_ticket_channel(interaction: discord.Interaction):
         )
         
         instruction_embed.add_field(
-            name="🏦 Bank Transfer",
-            value=(
-                "```\n"
-                "Bank: BCA\n"
-                "Rekening: 6241530865\n"
-                "Atas Nama: Aryansyah Saputra\n"
-                "```"
-            ),
-            inline=False
-        )
-        
-        instruction_embed.add_field(
             name="⚡ Penting",
             value=(
                 "• 1 user hanya bisa punya 1 ticket aktif\n"
@@ -4050,8 +4017,6 @@ async def setup_ticket_channel(interaction: discord.Interaction):
         )
         
         instruction_embed.set_footer(text="🎮 Fish-It Roblox Gift Service • Trusted Seller")
-        
-        instruction_embed.set_footer(text="Klik tombol di bawah untuk mulai!")
         
         # Send embed with button
         view = CreateTicketButton()
@@ -4187,13 +4152,10 @@ async def setup_mm_channel(interaction: discord.Interaction):
         )
         
         instruction_embed.add_field(
-            name="🏦 Rekening Middleman",
+            name="💳 Metode Pembayaran",
             value=(
-                "```\n"
-                "Bank: BCA\n"
-                "Rekening: 6241530865\n"
-                "Atas Nama: Aryansyah Saputra\n"
-                "```"
+                "**QRIS** - Scan & bayar langsung\n"
+                "Admin akan berikan QRIS di ticket Anda"
             ),
             inline=False
         )
@@ -4891,14 +4853,8 @@ async def set_rate(interaction: discord.Interaction, rate: int):
                 )
                 
                 instruction_embed.add_field(
-                    name="🏦 Bank Transfer",
-                    value=(
-                        "```\n"
-                        "Bank: BCA\n"
-                        "Rekening: 6241530865\n"
-                        "Atas Nama: Aryansyah Saputra\n"
-                        "```"
-                    ),
+                    name="💳 Pembayaran",
+                    value="Admin akan berikan **QRIS** di ticket Anda",
                     inline=False
                 )
                 
@@ -5020,7 +4976,8 @@ async def set_price(interaction: discord.Interaction, item: app_commands.Choice[
                         "**Contoh:** `AbuyyXZ777`\n\n"
                         "**3.** Bot akan otomatis create private ticket channel untuk Anda\n\n"
                         "**4.** Masuk ke ticket channel dan gunakan `/add` untuk order item\n\n"
-                        "**5.** Setelah order selesai, transfer dan `/submit` bukti transfer"
+                        "**5.** Setelah order selesai, transfer dan `/submit` bukti transfer\n\n"
+                        "**6.** Tunggu admin approve → Done!"
                     ),
                     inline=False
                 )
@@ -5038,23 +4995,11 @@ async def set_price(interaction: discord.Interaction, item: app_commands.Choice[
                 )
                 
                 instruction_embed.add_field(
-                    name="🏦 Bank Transfer",
-                    value=(
-                        "```\n"
-                        "Bank: BCA\n"
-                        "Rekening: 6241530865\n"
-                        "Atas Nama: Aryansyah Saputra\n"
-                        "```"
-                    ),
-                    inline=False
-                )
-                
-                instruction_embed.add_field(
                     name="⚠️ Penting",
                     value=(
                         "• 1 user hanya bisa punya 1 ticket aktif\n"
                         "• Username game minimal 3 karakter\n"
-                        "• Gunakan `/close` untuk tutup ticket\n"
+                        "• Bank transfer info akan muncul di ticket Anda\n"
                         "• Button akan tetap ada meski bot restart"
                     ),
                     inline=False

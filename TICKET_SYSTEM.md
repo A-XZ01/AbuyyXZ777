@@ -109,16 +109,14 @@ Sistem ticket untuk buyer order item dengan private channel. Setiap buyer hanya 
 | Item D | Rp296.000 | `/add item:D quantity:1` = Rp296.000 |
 | Item E | Rp370.000 | `/add item:E quantity:5` = Rp1.850.000 |
 
-## 🏦 Payment Info
+## 💳 Payment Info
 
-**Bank Transfer:**
+**Pembayaran QRIS:**
 ```
-Bank: BCA
-Nomor Rekening: 6241530865
-Atas Nama: Aryansyah Saputra
+Admin akan memberikan QRIS di ticket Anda
 ```
 
-Buyer transfer **Grand Total** yang tertera di ticket.
+Buyer bayar **Grand Total** yang tertera di ticket.
 
 ## 📊 Database Schema
 

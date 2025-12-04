@@ -42,15 +42,13 @@ PlayerXYZ123
 - Quantity max: 100 per item
 - Bot akan tampilkan grand total otomatis
 
-### 3️⃣ Transfer Uang
+### 3️⃣ Pembayaran QRIS
 ```
-Bank: BCA
-Nomor Rekening: 6241530865
-Atas Nama: Aryansyah Saputra
+Admin akan memberikan QRIS untuk pembayaran
 Jumlah: Sesuai Grand Total di ticket
 ```
-- Transfer **PERSIS** sesuai grand total
-- Screenshot bukti transfer
+- Scan QRIS yang diberikan admin
+- Screenshot bukti pembayaran
 
 ### 4️⃣ Submit Bukti
 ```
