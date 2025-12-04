@@ -229,15 +229,17 @@ class UsernameModal(discord.ui.Modal, title="🎫 Create New Ticket"):
                             super().__init__(title=f"📊 Jumlah: {item_data['name']}")
                             self.item_data = item_data
                             self.ticket_id = ticket_id
-                        
-                        quantity_input = discord.ui.TextInput(
-                            label="Quantity",
-                            placeholder="Masukkan jumlah (1-100)",
-                            min_length=1,
-                            max_length=3,
-                            required=True,
-                            style=discord.TextStyle.short
-                        )
+                            
+                            # Add TextInput to modal
+                            self.quantity_input = discord.ui.TextInput(
+                                label="Quantity",
+                                placeholder="Masukkan jumlah (1-100)",
+                                min_length=1,
+                                max_length=3,
+                                required=True,
+                                style=discord.TextStyle.short
+                            )
+                            self.add_item(self.quantity_input)
                         
                         async def on_submit(self, modal_interaction: discord.Interaction):
                             try:
