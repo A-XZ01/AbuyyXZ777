@@ -2694,7 +2694,7 @@ async def reset_stats(interaction: discord.Interaction, user: Optional[discord.M
                 await interaction_btn.response.send_message("✅ Reset dibatalkan.", ephemeral=True)
 
         view = ResetAllConfirmView(initiator_id=interaction.user.id)
-        await interaction.response.send_message("⚠️ Anda berusaha mereset semua statistik. Tekan **Konfirmasi Reset Semua** untuk membuat backup lalu melanjutkan.", view=view, ephemeral=False)
+        await interaction.followup.send("⚠️ Anda berusaha mereset semua statistik. Tekan **Konfirmasi Reset Semua** untuk membuat backup lalu melanjutkan.", view=view, ephemeral=False)
         return
 
     # Reset single user (default: self)
