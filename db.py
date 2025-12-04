@@ -14,10 +14,14 @@ DATABASE_URL = os.getenv('DATABASE_URL')
 USE_POSTGRES = DATABASE_URL and DATABASE_URL.startswith('postgres')
 
 if USE_POSTGRES:
-    import psycopg2
-    from psycopg2.extras import RealDictCursor
+    try:
+        import psycopg2  # type: ignore
+        from psycopg2.extras import RealDictCursor  # type: ignore
+    except ImportError:
+        print("⚠️ psycopg2 not installed, falling back to SQLite")
+        USE_POSTGRES = False
     # Fix Render PostgreSQL URL format
-    if DATABASE_URL.startswith('postgres://'):
+    if DATABASE_URL and DATABASE_URL.startswith('postgres://'):
         DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql://', 1)
 
 
