@@ -1872,7 +1872,7 @@ class MyClient(discord.Client):
         
         # Buat embed modern
         embed = discord.Embed(
-            title="📊 Daily Leaderboard — Top Sultan Hari Ini",
+            title="💎 Daily Leaderboard — Top Sultan Hari Ini",
             description="",
             color=0x00D9FF,  # Cyan modern
             timestamp=dt.now()
@@ -3094,8 +3094,24 @@ async def allstats_command(interaction: discord.Interaction):
     await interaction.response.defer()
     
     try:
-        # Ambil ALL-TIME leaderboard (top 10)
-        all_stats = db.get_leaderboard(interaction.guild.id, limit=10)
+        # Query langsung dari transactions untuk all-time stats
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT 
+                user_id,
+                SUM(amount) as total_spend,
+                COUNT(*) as deals_count
+            FROM transactions
+            WHERE guild_id = ?
+            GROUP BY user_id
+            ORDER BY total_spend DESC
+            LIMIT 10
+        """, (str(interaction.guild.id),))
+        
+        all_stats = cursor.fetchall()
+        conn.close()
         
         if not all_stats:
             await interaction.followup.send(
@@ -3124,12 +3140,12 @@ async def allstats_command(interaction: discord.Interaction):
             
             leaderboard_lines.append(
                 f"{rank} **{name}**\n"
-                f"└ {stat['deals_completed']} deals • 💰 **{format_idr(stat['total_idr_value'])}**"
+                f"└ {stat['deals_count']} deals • 💰 **{format_idr(stat['total_spend'])}**"
             )
         
         # Buat embed modern
         embed = discord.Embed(
-            title="📊 All-Time Leaderboard — Top Sultan",
+            title="👑 All-Time Leaderboard — Top Sultan",
             description="\n\n".join(leaderboard_lines),
             color=0xFFD700,  # Gold
             timestamp=dt.now()
@@ -5066,7 +5082,7 @@ async def daily_leaderboard(interaction: discord.Interaction):
         
         # Buat embed baru
         embed = discord.Embed(
-            title="📊 Daily Leaderboard — Top Sultan Hari Ini",
+            title="💎 Daily Leaderboard — Top Sultan Hari Ini",
             description="",
             color=0x00D9FF,  # Cyan modern
             timestamp=dt.now()
