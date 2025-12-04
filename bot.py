@@ -23,7 +23,7 @@ class UsernameModal(discord.ui.Modal, title="🎫 Create New Ticket"):
     """Modal untuk input username game"""
     username_input = discord.ui.TextInput(
         label="Username Game Anda",
-        placeholder="Contoh: PlayerXYZ123",
+        placeholder="Contoh: AbuyyXZ777",
         min_length=3,
         max_length=50,
         required=True,
@@ -3963,8 +3963,8 @@ async def setup_ticket_channel(interaction: discord.Interaction):
                 "**2.** Input username game Anda (min 3 karakter)\n"
                 "**Contoh:** `AbuyyXZ777`\n\n"
                 "**3.** Bot akan create private ticket channel\n\n"
-                "**4.** Lihat list item & harga di ticket channel\n\n"
-                "**5.** Gunakan `/add` untuk order item\n\n"
+                "**4.** Pilih item dari dropdown menu di ticket\n\n"
+                "**5.** Masukkan quantity & konfirmasi\n\n"
                 "**6.** Upload bukti pembayaran (auto-detect)"
             ),
             inline=False
@@ -3982,7 +3982,7 @@ async def setup_ticket_channel(interaction: discord.Interaction):
                 "• 1 user hanya bisa punya 1 ticket aktif\n"
                 "• Upload bukti transfer ASLI (tidak boleh edit)\n"
                 "• Button akan tetap ada meski bot restart\n"
-                "• Gunakan `/add` di ticket untuk order"
+                "• Pilih item langsung dari dropdown menu"
             ),
             inline=False
         )
