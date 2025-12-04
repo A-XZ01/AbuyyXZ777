@@ -610,10 +610,22 @@ class BotDatabase:
         conn.close()
     
     def reset_all_stats(self, guild_id: int):
-        """Reset semua stats di guild"""
+        """Reset semua stats dan transactions di guild"""
         conn = self.get_connection()
         cursor = conn.cursor()
+        
+        # Hapus semua transaksi (yang dipakai untuk leaderboard)
+        cursor.execute("DELETE FROM transactions WHERE guild_id = ?", (str(guild_id),))
+        
+        # Hapus user stats
         cursor.execute("DELETE FROM user_stats WHERE guild_id = ?", (str(guild_id),))
+        
+        # Hapus weekly stats
+        cursor.execute("DELETE FROM weekly_stats WHERE guild_id = ?", (str(guild_id),))
+        
+        # Hapus achievements
+        cursor.execute("DELETE FROM achievements WHERE guild_id = ?", (str(guild_id),))
+        
         conn.commit()
         conn.close()
     
