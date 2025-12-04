@@ -3081,14 +3081,14 @@ async def stats_command(interaction: discord.Interaction, user: Optional[discord
 # --- Slash Command: /allstats (All-Time Leaderboard) ---
 @client.tree.command(
     name="allstats",
-    description="[OWNER] 🏆 All-Time Leaderboard - Total statistik sepanjang waktu"
+    description="[ADMIN] 🏆 All-Time Leaderboard - Total statistik sepanjang waktu"
 )
 @app_commands.describe(
     page='Halaman leaderboard (default: 1)',
     per_page='Jumlah user per halaman (default: 10, max: 20)'
 )
 @app_commands.default_permissions(administrator=True)
-@owner_only()
+@admin_or_owner()
 async def allstats_command(interaction: discord.Interaction, page: Optional[int] = 1, per_page: Optional[int] = 10):
     await interaction.response.defer()
     
