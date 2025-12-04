@@ -986,6 +986,19 @@ def owner_only():
     return app_commands.check(predicate)
 
 
+def admin_or_owner():
+    """Decorator untuk commands yang bisa digunakan Admin atau Owner"""
+    async def predicate(interaction: discord.Interaction) -> bool:
+        if not is_admin_or_owner(interaction):
+            await interaction.response.send_message(
+                "❌ **ADMIN/OWNER ONLY**\n\nCommand ini hanya bisa digunakan oleh Admin atau Owner server!",
+                ephemeral=True
+            )
+            return False
+        return True
+    return app_commands.check(predicate)
+
+
 async def detect_legitimate_transfer_screenshot(image_url: str) -> dict:
     """HYBRID APPROACH: Detect legitimate transfer screenshots using multiple methods
     
