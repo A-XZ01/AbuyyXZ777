@@ -472,6 +472,36 @@ class BotDatabase:
         conn.commit()
         conn.close()
     
+    def get_leaderboard(self, guild_id: int, limit: int = None) -> List[Dict[str, Any]]:
+        """Ambil all-time leaderboard berdasarkan total spending"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        # Query dengan optional LIMIT
+        query = """
+            SELECT user_id, deals_completed, total_idr_value
+            FROM user_stats
+            WHERE guild_id = ?
+            ORDER BY total_idr_value DESC
+        """
+        
+        if limit:
+            query += f" LIMIT {limit}"
+        
+        cursor.execute(query, (str(guild_id),))
+        
+        rows = cursor.fetchall()
+        conn.close()
+        
+        return [
+            {
+                'user_id': row['user_id'],
+                'deals_completed': row['deals_completed'],
+                'total_idr_value': row['total_idr_value']
+            }
+            for row in rows
+        ]
+    
     def get_weekly_leaderboard(self, guild_id: int, limit: int = None) -> List[Dict[str, Any]]:
         """Ambil leaderboard berdasarkan spending minggu ini"""
         week_start = self.get_current_week_start()

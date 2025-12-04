@@ -3093,117 +3093,143 @@ async def stats_command(interaction: discord.Interaction, user: Optional[discord
 async def allstats_command(interaction: discord.Interaction, page: Optional[int] = 1, per_page: Optional[int] = 10):
     await interaction.response.defer()
     
-    # Validasi
-    if page < 1:
-        page = 1
-    if per_page < 1 or per_page > 20:
-        per_page = 10
-    
-    # Ambil ALL TIME leaderboard (bukan weekly) - TOP 10 SAJA
-    all_stats = db.get_leaderboard(interaction.guild.id, limit=10)
-    
-    if not all_stats:
-        await interaction.followup.send("❌ Belum ada data transaksi di server ini.", ephemeral=True)
-        return
-
-    # Ambil member info
-    guild = interaction.guild
-    stats_list = []
-    
-    for stat in all_stats:
-        try:
-            member = await guild.fetch_member(int(stat['user_id']))
-            stats_list.append((
-                member.display_name,
-                stat['deals_completed'],
-                stat['total_idr_value'],
-                member
-            ))
-        except Exception:
-            # User mungkin sudah keluar dari server
-            stats_list.append((
-                f"User {stat['user_id']}",
-                stat['deals_completed'],
-                stat['total_idr_value'],
-                None
-            ))
-
-    if not stats_list:
-        await interaction.followup.send("❌ Belum ada user di leaderboard.", ephemeral=True)
-        return
-    
-    # Pagination
-    total_users = len(stats_list)
-    total_pages = (total_users - 1) // per_page + 1
-    if page > total_pages:
-        page = total_pages
-    
-    start_idx = (page - 1) * per_page
-    end_idx = min(start_idx + per_page, total_users)
-    page_stats = stats_list[start_idx:end_idx]
-    
-    # Import datetime untuk week calculation
-    from datetime import datetime as dt, timedelta
-    
-    # Buat embed dengan tema SULTAN elegant & modern
-    embed = discord.Embed(
-        title="",
-        description="",
-        color=0xFFD700,  # Gold color
-        timestamp=dt.now()
-    )
-    
-    # Header elegant dengan crown
-    embed.set_author(
-        name="👑 All-Time Leaderboard — Top Sultan",
-        icon_url=interaction.guild.icon.url if interaction.guild.icon else None
-    )
-    
-    # Thumbnail server icon
-    if interaction.guild.icon:
-        embed.set_thumbnail(url=interaction.guild.icon.url)
-    
-    # Ranking icons - attractive for top 3, uniform for 4-10
-    ranking_emoji = {
-        1: "👑",  # Crown for #1
-        2: "🌟",  # Star for #2
-        3: "💎"   # Diamond for #3
-    }
-    
-    leaderboard_text = []
-    for idx, (name, deals, total_spend, member) in enumerate(page_stats, start_idx + 1):
-        # Top 3 get special icons, 4-10 get uniform numbering
-        if idx <= 3:
-            rank_emoji = ranking_emoji[idx]
-        else:
-            rank_emoji = f"▫️ `#{idx}`"
+    try:
+        # Validasi
+        if page < 1:
+            page = 1
+        if per_page < 1 or per_page > 20:
+            per_page = 10
         
-        # Format clean dengan separator
-        leaderboard_text.append(
-            f"{rank_emoji} **{name}** `Top {idx}`\n"
-            f"   **{deals}** transaksi • 💵 {format_idr(total_spend)}"
+        # Ambil ALL TIME leaderboard (bukan weekly) - TOP 10 SAJA
+        all_stats = db.get_leaderboard(interaction.guild.id, limit=10)
+        
+        if not all_stats:
+            await interaction.followup.send("❌ Belum ada data transaksi di server ini.", ephemeral=True)
+            return
+
+        # Ambil member info dengan TIMEOUT protection
+        guild = interaction.guild
+        stats_list = []
+        
+        for stat in all_stats:
+            try:
+                # Add timeout untuk fetch_member (max 3 detik per user)
+                member = await asyncio.wait_for(
+                    guild.fetch_member(int(stat['user_id'])),
+                    timeout=3.0
+                )
+                stats_list.append((
+                    member.display_name,
+                    stat['deals_completed'],
+                    stat['total_idr_value'],
+                    member
+                ))
+            except asyncio.TimeoutError:
+                # Timeout saat fetch member
+                stats_list.append((
+                    f"User {stat['user_id']}",
+                    stat['deals_completed'],
+                    stat['total_idr_value'],
+                    None
+                ))
+            except Exception:
+                # User mungkin sudah keluar dari server
+                stats_list.append((
+                    f"User {stat['user_id']}",
+                    stat['deals_completed'],
+                    stat['total_idr_value'],
+                    None
+                    ))
+
+        if not stats_list:
+            await interaction.followup.send("❌ Belum ada user di leaderboard.", ephemeral=True)
+            return
+        
+        # Pagination
+        total_users = len(stats_list)
+        total_pages = (total_users - 1) // per_page + 1
+        if page > total_pages:
+            page = total_pages
+        
+        start_idx = (page - 1) * per_page
+        end_idx = min(start_idx + per_page, total_users)
+        page_stats = stats_list[start_idx:end_idx]
+        
+        # Import datetime untuk week calculation
+        from datetime import datetime as dt, timedelta
+        
+        # Buat embed dengan tema SULTAN elegant & modern
+        embed = discord.Embed(
+            title="",
+            description="",
+            color=0xFFD700,  # Gold color
+            timestamp=dt.now()
         )
+        
+        # Header elegant dengan crown
+        embed.set_author(
+            name="👑 All-Time Leaderboard — Top Sultan",
+            icon_url=interaction.guild.icon.url if interaction.guild.icon else None
+        )
+        
+        # Thumbnail server icon
+        if interaction.guild.icon:
+            embed.set_thumbnail(url=interaction.guild.icon.url)
+        
+        # Ranking icons - attractive for top 3, uniform for 4-10
+        ranking_emoji = {
+            1: "👑",  # Crown for #1
+            2: "🌟",  # Star for #2
+            3: "💎"   # Diamond for #3
+        }
+        
+        leaderboard_text = []
+        for idx, (name, deals, total_spend, member) in enumerate(page_stats, start_idx + 1):
+            # Top 3 get special icons, 4-10 get uniform numbering
+            if idx <= 3:
+                rank_emoji = ranking_emoji[idx]
+            else:
+                rank_emoji = f"▫️ `#{idx}`"
+            
+            # Format clean dengan separator
+            leaderboard_text.append(
+                f"{rank_emoji} **{name}** `Top {idx}`\n"
+                f"   **{deals}** transaksi • 💵 {format_idr(total_spend)}"
+            )
     
-    # Description dengan layout minimalis elegant
-    embed.description = (
-        f"🏆 **Top {total_users} Sultan**\n\n" +
-        "\n\n".join(leaderboard_text)
-    )
+        # Description dengan layout minimalis elegant
+        embed.description = (
+            f"🏆 **Top {total_users} Sultan**\n\n" +
+            "\n\n".join(leaderboard_text)
+        )
+        
+        # Footer dengan info
+        footer_text = f"📊 All-Time Stats • Page {page}/{total_pages}"
+        
+        embed.set_footer(text=footer_text, icon_url=interaction.guild.icon.url if interaction.guild.icon else None)
+        
+        # Post ke channel #lb-rich-daily (untuk all-time stats)
+        lb_daily_channel = discord.utils.get(interaction.guild.text_channels, name="lb-rich-daily")
+        
+        if lb_daily_channel:
+            await lb_daily_channel.send(embed=embed)
+            await interaction.followup.send(f"✅ Leaderboard posted to {lb_daily_channel.mention}!", ephemeral=True)
+        else:
+            # Fallback: kirim ke user yang request
+            await interaction.followup.send(embed=embed, ephemeral=False)
     
-    # Footer dengan info
-    footer_text = f"📊 All-Time Stats • Page {page}/{total_pages}"
-    
-    embed.set_footer(text=footer_text, icon_url=interaction.guild.icon.url if interaction.guild.icon else None)
-    
-    # Post ke channel #lb-rich-daily (untuk all-time stats)
-    lb_daily_channel = discord.utils.get(interaction.guild.text_channels, name="lb-rich-daily")
-    
-    if lb_daily_channel:
-        await lb_daily_channel.send(embed=embed)
-        await interaction.followup.send(f"✅ Leaderboard posted to {lb_daily_channel.mention}!", ephemeral=True)
-    else:
-        # Fallback: kirim ke user yang request
-        await interaction.followup.send(embed=embed, ephemeral=False)
+    except Exception as e:
+        # Global error handler untuk /allstats
+        print(f"❌ Error in /allstats: {e}")
+        import traceback
+        traceback.print_exc()
+        try:
+            await interaction.followup.send(
+                f"❌ Terjadi error saat generate leaderboard:\n```{str(e)[:200]}```",
+                ephemeral=True
+            )
+        except:
+            pass  # Interaction mungkin sudah expired
 
 
 # --- Slash Command: /add ---
