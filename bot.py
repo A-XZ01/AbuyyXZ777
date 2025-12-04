@@ -10,7 +10,7 @@ import hashlib
 import io
 import aiohttp
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Optional, List
 from dotenv import load_dotenv
 from db import BotDatabase
 from PIL import Image
@@ -1650,9 +1650,6 @@ class MyClient(discord.Client):
             print("💡 Commands sekarang tersedia di semua server!")
         except Exception as e:
             print(f"❌ Gagal sinkronisasi commands: {e}")
-        
-        # Auto-update ticket pricelist if prices changed
-        await self.auto_update_ticket_pricelist()
     
     @tasks.loop(hours=24)
     async def auto_backup_task(self):
@@ -1748,95 +1745,6 @@ class MyClient(discord.Client):
     async def before_auto_update_leaderboard(self):
         """Wait until bot is ready"""
         await self.wait_until_ready()
-    
-    async def auto_update_ticket_pricelist(self):
-        """Auto-update ticket pricelist embed if prices changed"""
-        import hashlib
-        import json
-        
-        for guild in self.guilds:
-            try:
-                # Get current prices from database
-                item_prices = db.get_item_prices(guild.id)
-                current_price_hash = hashlib.md5(json.dumps(item_prices, sort_keys=True).encode()).hexdigest()
-                
-                # Get saved ticket setup data
-                setup_data = db.get_ticket_setup_message(guild.id)
-                
-                if not setup_data:
-                    continue  # Belum pernah setup
-                
-                # Compare hash
-                if setup_data.get('price_hash') == current_price_hash:
-                    continue  # Harga tidak berubah
-                
-                # Harga berubah! Update embed
-                channel = guild.get_channel(setup_data['channel_id'])
-                if not channel:
-                    continue
-                
-                try:
-                    message = await channel.fetch_message(setup_data['message_id'])
-                except:
-                    continue
-                
-                # Recreate embed with new prices
-                instruction_embed = discord.Embed(
-                    title="🎫 Open Ticket - Panduan",
-                    description="Selamat datang di sistem ticket order!",
-                    color=discord.Color.blue(),
-                    timestamp=datetime.now()
-                )
-                
-                instruction_embed.add_field(
-                    name="📝 Cara Buka Ticket",
-                    value=(
-                        "**1.** Klik tombol **Create Ticket** di bawah\n\n"
-                        "**2.** Input username game Anda (min 3 karakter)\n"
-                        "**Contoh:** `AbuyyXZ777`\n\n"
-                        "**3.** Bot akan otomatis create private ticket channel untuk Anda\n\n"
-                        "**4.** Masuk ke ticket channel dan gunakan `/add` untuk order item\n\n"
-                        "**5.** Setelah order selesai, transfer dan `/submit` bukti transfer\n\n"
-                        "**6.** Tunggu admin approve → Done!"
-                    ),
-                    inline=False
-                )
-                
-                instruction_embed.add_field(
-                    name="💰 Item & Harga",
-                    value=(
-                        f"**Item A:** Rp{item_prices['A']:,}\n"
-                        f"**Item B:** Rp{item_prices['B']:,}\n"
-                        f"**Item C:** Rp{item_prices['C']:,}\n"
-                        f"**Item D:** Rp{item_prices['D']:,}\n"
-                        f"**Item E:** Rp{item_prices['E']:,}"
-                    ),
-                    inline=False
-                )
-                
-                instruction_embed.add_field(
-                    name="⚡ Penting",
-                    value=(
-                        "• 1 user hanya bisa punya 1 ticket aktif\n"
-                        "• Upload bukti transfer ASLI (tidak boleh edit)\n"
-                        "• Button akan tetap ada meski bot restart\n"
-                        "• Gunakan `/add` di ticket untuk order"
-                    ),
-                    inline=False
-                )
-                
-                instruction_embed.set_footer(text="🎮 Fish-It Roblox Gift Service • Auto-updated")
-                
-                # Update message
-                await message.edit(embed=instruction_embed)
-                
-                # Update hash in database
-                db.set_ticket_setup_message(guild.id, channel.id, message.id, current_price_hash)
-                
-                print(f"✅ Pricelist auto-updated untuk {guild.name}")
-                
-            except Exception as e:
-                print(f"❌ Error auto-update pricelist for {guild.name}: {e}")
     
     async def generate_leaderboard_embed(self, guild: discord.Guild) -> discord.Embed:
         """Generate embed untuk leaderboard"""
@@ -2583,14 +2491,7 @@ client = MyClient(intents=intents)
     item='Pilih item yang dijual',
     user='User yang melakukan transaksi (default: Anda sendiri)'
 )
-@app_commands.choices(item=[
-    app_commands.Choice(name="Item A - Rp74.000", value="A"),
-    app_commands.Choice(name="Item B - Rp150.000", value="B"),
-    app_commands.Choice(name="Item C - Rp222.000", value="C"),
-    app_commands.Choice(name="Item D - Rp296.000", value="D"),
-    app_commands.Choice(name="Item E - Rp370.000", value="E"),
-])
-async def complete(interaction: discord.Interaction, item: app_commands.Choice[str], user: Optional[discord.Member] = None):
+async def complete(interaction: discord.Interaction, item: str, user: Optional[discord.Member] = None):
     # Check cooldown untuk #cmd-bot
     is_cooldown, remaining = check_cmd_bot_cooldown(interaction)
     if is_cooldown:
@@ -2606,15 +2507,14 @@ async def complete(interaction: discord.Interaction, item: app_commands.Choice[s
     
     target = user if user is not None else interaction.user
     
-    # Mapping item ke harga (load from database)
-    item_prices = db.get_item_prices(interaction.guild.id)
+    # Get item dari database
+    item_data = db.get_item_price(interaction.guild.id, item)
     
-    item_name = item.value
-    amount = item_prices.get(item_name, 0)
-    
-    if amount == 0:
-        await interaction.followup.send("❌ Item tidak valid.", ephemeral=True)
+    if not item_data:
+        await interaction.followup.send("❌ Item tidak ditemukan.", ephemeral=True)
         return
+
+    amount = item_data['price_idr']  # Harga dalam IDR
 
     # Update menggunakan database
     updated = db.update_user_stats(interaction.guild.id, target.id, amount)
@@ -2644,7 +2544,7 @@ async def complete(interaction: discord.Interaction, item: app_commands.Choice[s
     # Field dengan design clean
     embed.add_field(
         name="🛍️ Item Purchased",
-        value=f"`{item_name}`",
+        value=f"`{item_data['name']}` ({item_data['robux']} R$ • Rp{amount:,})",
         inline=False
     )
     
@@ -2681,6 +2581,32 @@ async def complete(interaction: discord.Interaction, item: app_commands.Choice[s
         icon_url=interaction.guild.icon.url if interaction.guild.icon else None
     )
     await interaction.followup.send(embed=embed, ephemeral=False)
+
+
+@complete.autocomplete('item')
+async def complete_item_autocomplete(
+    interaction: discord.Interaction,
+    current: str,
+) -> List[app_commands.Choice[str]]:
+    """Autocomplete untuk item di /complete command"""
+    try:
+        items = db.get_all_items(interaction.guild.id)
+        
+        # Filter berdasarkan input user
+        if current:
+            items = [item for item in items if current.lower() in item['name'].lower()]
+        
+        # Return max 25 items (Discord limit)
+        return [
+            app_commands.Choice(
+                name=f"{item['name']} ({item['robux']} R$ • Rp{item['price_idr']:,})",
+                value=item['code']
+            )
+            for item in items[:25]
+        ]
+    except Exception as e:
+        print(f"Error in autocomplete: {e}")
+        return []
 
 
 # --- Slash Command: /reset_stats ---
@@ -4022,12 +3948,8 @@ async def setup_ticket_channel(interaction: discord.Interaction):
         view = CreateTicketButton()
         message = await channel.send(embed=instruction_embed, view=view)
         
-        # Save message ID and price hash to database
-        import hashlib
-        import json
-        item_prices = db.get_item_prices(interaction.guild.id)
-        price_hash = hashlib.md5(json.dumps(item_prices, sort_keys=True).encode()).hexdigest()
-        db.set_ticket_setup_message(interaction.guild.id, channel.id, message.id, price_hash)
+        # Save message ID to database
+        db.set_ticket_setup_message(interaction.guild.id, channel.id, message.id, "rate_system")
         
         # Konfirmasi ke admin
         category_info = f" di kategori **{tickets_category.name}**" if tickets_category else ""
@@ -4905,139 +4827,6 @@ async def set_rate(interaction: discord.Interaction, rate: int):
         user_id=interaction.user.id,
         action="set_rate",
         details=f"Rate updated: Rp{old_rate} → Rp{rate} per Robux"
-    )
-
-
-# --- Slash Command: /set-price ---
-@client.tree.command(
-    name="set-price",
-    description="[OWNER] Ubah harga item dari Discord tanpa edit code."
-)
-@app_commands.describe(
-    item="Pilih item yang ingin diubah harganya",
-    price="Harga baru dalam Rupiah (contoh: 150000)"
-)
-@app_commands.choices(item=[
-    app_commands.Choice(name="Item A", value="A"),
-    app_commands.Choice(name="Item B", value="B"),
-    app_commands.Choice(name="Item C", value="C"),
-    app_commands.Choice(name="Item D", value="D"),
-    app_commands.Choice(name="Item E", value="E"),
-])
-@app_commands.default_permissions(administrator=True)
-@owner_only()
-async def set_price(interaction: discord.Interaction, item: app_commands.Choice[str], price: int):
-    """Set harga item dan auto-update ticket embed"""
-    await interaction.response.defer(ephemeral=True)
-    
-    if price < 1000:
-        await interaction.followup.send("❌ Harga minimal Rp1.000", ephemeral=True)
-        return
-    
-    if price > 10000000:
-        await interaction.followup.send("❌ Harga maksimal Rp10.000.000", ephemeral=True)
-        return
-    
-    # Get old price
-    old_prices = db.get_item_prices(interaction.guild.id)
-    old_price = old_prices.get(item.value, 0)
-    
-    # Update price in database
-    db.set_item_price(interaction.guild.id, item.value, price)
-    
-    # Auto-update ticket embed
-    setup_data = db.get_ticket_setup_message(interaction.guild.id)
-    
-    if setup_data:
-        try:
-            channel = interaction.guild.get_channel(setup_data['channel_id'])
-            if channel:
-                message = await channel.fetch_message(setup_data['message_id'])
-                
-                # Get updated prices
-                import hashlib
-                import json
-                updated_prices = db.get_item_prices(interaction.guild.id)
-                new_price_hash = hashlib.md5(json.dumps(updated_prices, sort_keys=True).encode()).hexdigest()
-                
-                # Recreate embed
-                instruction_embed = discord.Embed(
-                    title="🎫 Open Ticket - Panduan",
-                    description="Selamat datang di sistem ticket order!",
-                    color=discord.Color.blue(),
-                    timestamp=datetime.now()
-                )
-                
-                instruction_embed.add_field(
-                    name="📝 Cara Buka Ticket",
-                    value=(
-                        "**1.** Klik tombol **Create Ticket** di bawah\n\n"
-                        "**2.** Input username game Anda (min 3 karakter)\n"
-                        "**Contoh:** `AbuyyXZ777`\n\n"
-                        "**3.** Bot akan otomatis create private ticket channel untuk Anda\n\n"
-                        "**4.** Masuk ke ticket channel dan gunakan `/add` untuk order item\n\n"
-                        "**5.** Setelah order selesai, transfer dan `/submit` bukti transfer\n\n"
-                        "**6.** Tunggu admin approve → Done!"
-                    ),
-                    inline=False
-                )
-                
-                instruction_embed.add_field(
-                    name="💰 Item & Harga",
-                    value=(
-                        f"**Item A:** Rp{updated_prices.get('A', 0):,}\n"
-                        f"**Item B:** Rp{updated_prices.get('B', 0):,}\n"
-                        f"**Item C:** Rp{updated_prices.get('C', 0):,}\n"
-                        f"**Item D:** Rp{updated_prices.get('D', 0):,}\n"
-                        f"**Item E:** Rp{updated_prices.get('E', 0):,}"
-                    ),
-                    inline=False
-                )
-                
-                instruction_embed.add_field(
-                    name="⚠️ Penting",
-                    value=(
-                        "• 1 user hanya bisa punya 1 ticket aktif\n"
-                        "• Username game minimal 3 karakter\n"
-                        "• Bank transfer info akan muncul di ticket Anda\n"
-                        "• Button akan tetap ada meski bot restart"
-                    ),
-                    inline=False
-                )
-                
-                instruction_embed.set_footer(text=f"Klik tombol di bawah untuk mulai! • Last updated by {interaction.user.name}")
-                
-                await message.edit(embed=instruction_embed)
-                db.set_ticket_setup_message(interaction.guild.id, channel.id, message.id, new_price_hash)
-                
-                await interaction.followup.send(
-                    f"✅ **Harga berhasil diupdate!**\n\n"
-                    f"**{item.name}**\n"
-                    f"Harga lama: Rp{old_price:,}\n"
-                    f"Harga baru: **Rp{price:,}**\n\n"
-                    f"📝 Embed di #open-ticket sudah di-update otomatis!",
-                    ephemeral=True
-                )
-        except Exception as e:
-            await interaction.followup.send(
-                f"✅ Harga **{item.name}** berhasil diupdate menjadi **Rp{price:,}**\n\n"
-                f"⚠️ Tapi gagal update embed: {e}\n"
-                f"Gunakan `/setup-ticket` untuk refresh embed.",
-                ephemeral=True
-            )
-    else:
-        await interaction.followup.send(
-            f"✅ Harga **{item.name}** berhasil diupdate menjadi **Rp{price:,}**\n\n"
-            f"ℹ️ Belum ada ticket setup. Gunakan `/setup-ticket` untuk membuat channel.",
-            ephemeral=True
-        )
-    
-    # Log action
-    db.log_action(
-        guild_id=interaction.guild.id,
-        user_id=interaction.user.id,
-        action="set_item_price",
-        details=f"{item.name}: Rp{old_price:,} → Rp{price:,}"
     )
 
 
