@@ -3226,32 +3226,32 @@ async def allstats_command(interaction: discord.Interaction, page: Optional[int]
     if per_page < 1 or per_page > 20:
         per_page = 10
     
-    # Ambil weekly leaderboard - TOP 10 SAJA
-    weekly_stats = db.get_weekly_leaderboard(interaction.guild.id, limit=10)
+    # Ambil ALL TIME leaderboard (bukan weekly) - TOP 10 SAJA
+    all_stats = db.get_leaderboard(interaction.guild.id, limit=10)
     
-    if not weekly_stats:
-        await interaction.followup.send("❌ Belum ada data di leaderboard minggu ini.", ephemeral=True)
+    if not all_stats:
+        await interaction.followup.send("❌ Belum ada data transaksi di server ini.", ephemeral=True)
         return
 
     # Ambil member info
     guild = interaction.guild
     stats_list = []
     
-    for stat in weekly_stats:
+    for stat in all_stats:
         try:
             member = await guild.fetch_member(int(stat['user_id']))
             stats_list.append((
                 member.display_name,
-                stat['deals_count'],
-                stat['weekly_spend'],
+                stat['deals_completed'],
+                stat['total_idr_value'],
                 member
             ))
         except Exception:
             # User mungkin sudah keluar dari server
             stats_list.append((
                 f"User {stat['user_id']}",
-                stat['deals_count'],
-                stat['weekly_spend'],
+                stat['deals_completed'],
+                stat['total_idr_value'],
                 None
             ))
 
@@ -3282,7 +3282,7 @@ async def allstats_command(interaction: discord.Interaction, page: Optional[int]
     
     # Header elegant dengan crown
     embed.set_author(
-        name="👑 Weekly Leaderboard — Top Sultan",
+        name="👑 All-Time Leaderboard — Top Sultan",
         icon_url=interaction.guild.icon.url if interaction.guild.icon else None
     )
     
@@ -3298,7 +3298,7 @@ async def allstats_command(interaction: discord.Interaction, page: Optional[int]
     }
     
     leaderboard_text = []
-    for idx, (name, deals, weekly_spend, member) in enumerate(page_stats, start_idx + 1):
+    for idx, (name, deals, total_spend, member) in enumerate(page_stats, start_idx + 1):
         # Top 3 get special icons, 4-10 get uniform numbering
         if idx <= 3:
             rank_emoji = ranking_emoji[idx]
@@ -3308,13 +3308,8 @@ async def allstats_command(interaction: discord.Interaction, page: Optional[int]
         # Format clean dengan separator
         leaderboard_text.append(
             f"{rank_emoji} **{name}** `Top {idx}`\n"
-            f"   **{deals}** transaksi • 💵 {format_idr(weekly_spend)}"
+            f"   **{deals}** transaksi • 💵 {format_idr(total_spend)}"
         )
-    
-    # Get week info
-    week_start = db.get_current_week_start()
-    week_start_dt = dt.strptime(week_start, '%Y-%m-%d')
-    week_end_dt = week_start_dt + timedelta(days=6)
     
     # Description dengan layout minimalis elegant
     embed.description = (
@@ -3322,20 +3317,17 @@ async def allstats_command(interaction: discord.Interaction, page: Optional[int]
         "\n\n".join(leaderboard_text)
     )
     
-    # Footer dengan info reset
-    next_monday = week_start_dt + timedelta(days=7)
-    days_until_reset = (next_monday - dt.now()).days
-    
-    footer_text = f"🔄 Reset setiap Senin • {days_until_reset} hari lagi • Page {page}/{total_pages}"
+    # Footer dengan info
+    footer_text = f"📊 All-Time Stats • Page {page}/{total_pages}"
     
     embed.set_footer(text=footer_text, icon_url=interaction.guild.icon.url if interaction.guild.icon else None)
     
-    # Post ke channel #lb-rich-weekly (manual snapshot)
-    lb_weekly_channel = discord.utils.get(interaction.guild.text_channels, name="lb-rich-weekly")
+    # Post ke channel #lb-rich-daily (untuk all-time stats)
+    lb_daily_channel = discord.utils.get(interaction.guild.text_channels, name="lb-rich-daily")
     
-    if lb_weekly_channel:
-        await lb_weekly_channel.send(embed=embed)
-        await interaction.followup.send(f"✅ Leaderboard posted to {lb_weekly_channel.mention}!", ephemeral=True)
+    if lb_daily_channel:
+        await lb_daily_channel.send(embed=embed)
+        await interaction.followup.send(f"✅ Leaderboard posted to {lb_daily_channel.mention}!", ephemeral=True)
     else:
         # Fallback: kirim ke user yang request
         await interaction.followup.send(embed=embed, ephemeral=False)
