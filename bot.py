@@ -1720,10 +1720,8 @@ intents.members = True
 intents.message_content = True
 
 # Whitelist server yang diizinkan
-ALLOWED_GUILDS = [
-    1411612828867100684,  # Abuyy's server
-    1445079009405833299,  # BLOX
-]
+# Whitelist server yang diizinkan (kosongkan untuk allow all servers)
+ALLOWED_GUILDS = []  # Empty = allow all servers
 
 class MyClient(discord.Client):
     def __init__(self, *, intents: discord.Intents):
@@ -1745,11 +1743,11 @@ class MyClient(discord.Client):
         print(f"📡 Bot aktif di {len(self.guilds)} server")
         for guild in self.guilds:
             print(f"   - {guild.name} (ID: {guild.id})")
-            # Auto-leave jika bukan server yang diizinkan
-            if guild.id not in ALLOWED_GUILDS:
-                print(f"⚠️ Server {guild.name} tidak ada di whitelist, keluar...")
-                await guild.leave()
-                print(f"✅ Bot keluar dari server {guild.name}")
+            # Auto-leave disabled - allow all servers
+            # if guild.id not in ALLOWED_GUILDS:
+            #     print(f"⚠️ Server {guild.name} tidak ada di whitelist, keluar...")
+            #     await guild.leave()
+            #     print(f"✅ Bot keluar dari server {guild.name}")
         print("⏳ Mencoba sinkronisasi Slash Commands...")
         try:
             # Global sync
