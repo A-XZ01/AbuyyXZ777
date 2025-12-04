@@ -3208,15 +3208,18 @@ async def allstats_command(interaction: discord.Interaction, page: Optional[int]
         
         embed.set_footer(text=footer_text, icon_url=interaction.guild.icon.url if interaction.guild.icon else None)
         
-        # Post ke channel #lb-rich-daily (untuk all-time stats)
+        # ALWAYS send embed to user who requested
+        await interaction.followup.send(embed=embed, ephemeral=False)
+        
+        # ALSO post to #lb-rich-daily if it exists
         lb_daily_channel = discord.utils.get(interaction.guild.text_channels, name="lb-rich-daily")
         
         if lb_daily_channel:
-            await lb_daily_channel.send(embed=embed)
-            await interaction.followup.send(f"✅ Leaderboard posted to {lb_daily_channel.mention}!", ephemeral=True)
-        else:
-            # Fallback: kirim ke user yang request
-            await interaction.followup.send(embed=embed, ephemeral=False)
+            try:
+                await lb_daily_channel.send(embed=embed)
+                print(f"✅ Leaderboard also posted to #lb-rich-daily")
+            except Exception as e:
+                print(f"⚠️ Failed to post to #lb-rich-daily: {e}")
     
     except Exception as e:
         # Global error handler untuk /allstats
