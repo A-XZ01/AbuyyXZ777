@@ -3468,54 +3468,73 @@ async def approve_ticket(interaction: discord.Interaction):
         # Close ticket with approval tracking
         db.close_ticket(ticket['id'], interaction.user.id, approved_by=interaction.user.id)
         
-        # Send success message
-        approve_embed = discord.Embed(
-            title="✅ Transaksi Disetujui",
-            description=f"Pembayaran telah diverifikasi. Terima kasih atas kepercayaan Anda!",
-            color=0x2ECC71,  # Elegant green
+        # Get buyer info
+        buyer = interaction.guild.get_member(int(ticket['user_id']))
+        vouch_channel = discord.utils.get(interaction.guild.text_channels, name="vouch")
+        
+        # === SINGLE ELEGANT EMBED ===
+        success_embed = discord.Embed(
+            title="✨ Transaksi Berhasil",
+            description=f"{buyer.mention if buyer else 'Customer'}\n\nPembayaran diverifikasi. Terima kasih atas kepercayaan Anda!",
+            color=0x2ECC71,
             timestamp=datetime.now()
         )
         
-        approve_embed.add_field(name="💎 Total Transaksi", value=f"**{format_idr(grand_total)}**", inline=False)
+        success_embed.add_field(
+            name="💰 Total",
+            value=f"**Rp{grand_total:,}**",
+            inline=True
+        )
         
+        success_embed.add_field(
+            name="🎫 Ticket",
+            value=f"`#{ticket['ticket_number']:04d}`",
+            inline=True
+        )
+        
+        # Achievement badge if unlocked
         if new_achievements:
             ach_names = {
-                'deals_10': '🎯 Starter — 10 Transaksi',
-                'deals_50': '🔥 Dedicated — 50 Transaksi',
-                'deals_100': '⭐ Expert — 100 Transaksi',
-                'deals_500': '💎 Master — 500 Transaksi',
-                'value_1m': '💰 Millionaire — Rp1 Juta',
-                'value_5m': '💸 Big Spender — Rp5 Juta',
-                'value_10m': '🏆 High Roller — Rp10 Juta',
-                'value_50m': '👑 Whale — Rp50 Juta',
+                'deals_10': '🎯 10 Deals',
+                'deals_50': '🔥 50 Deals',
+                'deals_100': '⭐ 100 Deals',
+                'deals_500': '💎 500 Deals',
+                'value_1m': '💰 Rp1M',
+                'value_5m': '💸 Rp5M',
+                'value_10m': '🏆 Rp10M',
+                'value_50m': '👑 Rp50M',
             }
-            # Fix: new_achievements is list of dicts
             ach_list = []
             for achievement in new_achievements:
                 if isinstance(achievement, dict):
                     ach_type = achievement.get('achievement_type', '')
                     ach_list.append(ach_names.get(ach_type, ach_type))
                 else:
-                    # Fallback if it's just string
                     ach_list.append(ach_names.get(achievement, achievement))
             
-            approve_embed.add_field(
-                name="🎉 Achievement Unlocked!",
-                value="\n".join(ach_list),
+            success_embed.add_field(
+                name="🎉 Achievement",
+                value=" • ".join(ach_list),
                 inline=False
             )
         
-        approve_embed.set_footer(text="🕐 Channel akan ditutup dalam 60 detik", icon_url=interaction.guild.icon.url if interaction.guild.icon else None)
+        # Vouch reminder
+        if vouch_channel:
+            success_embed.add_field(
+                name="💌 Testimoni",
+                value=f"Share pengalaman kamu di {vouch_channel.mention}",
+                inline=False
+            )
         
-        await interaction.followup.send("✅ Approved! Channel akan dihapus dalam 60 detik.")
-        await interaction.channel.send(embed=approve_embed)
+        success_embed.set_footer(
+            text="Channel ditutup dalam 60 detik",
+            icon_url=interaction.guild.icon.url if interaction.guild.icon else None
+        )
         
-        # Mention buyer dan arahkan ke #vouch dengan embed
-        buyer = interaction.guild.get_member(int(ticket['user_id']))
-        vouch_channel = discord.utils.get(interaction.guild.text_channels, name="vouch")
+        await interaction.followup.send(embed=success_embed)
         
+        # Auto-role CUST untuk buyer yang sudah transaksi
         if buyer:
-            # Auto-role CUST untuk buyer yang sudah transaksi
             cust_role = discord.utils.get(interaction.guild.roles, name="CUST")
             guest_role = discord.utils.get(interaction.guild.roles, name="Guest")
             
@@ -3531,33 +3550,6 @@ async def approve_ticket(interaction: discord.Interaction):
                         
                 except Exception as e:
                     print(f"⚠️ Gagal memberikan role CUST: {e}")
-            
-            # Send vouch embed
-            if vouch_channel:
-                vouch_embed = discord.Embed(
-                    title="🎉 Transaksi Berhasil Diselesaikan",
-                    description=f"{buyer.mention}, terima kasih telah mempercayai kami sebagai pilihan Anda!",
-                    color=0xF39C12,  # Elegant gold
-                    timestamp=datetime.now()
-                )
-                vouch_embed.add_field(
-                    name="💌 Berikan Testimoni Anda",
-                    value=f"Bagikan pengalaman berbelanja Anda di {vouch_channel.mention} untuk membantu komunitas kami! ✨",
-                    inline=False
-                )
-                vouch_embed.add_field(
-                    name="💵 Total Pembelian",
-                    value=f"**{format_idr(grand_total)}**",
-                    inline=True
-                )
-                vouch_embed.add_field(
-                    name="🎫 Ticket ID",
-                    value=f"`#{ticket['ticket_number']:04d}`",
-                    inline=True
-                )
-                vouch_embed.set_footer(text="⭐ Kepuasan Anda adalah prioritas kami", icon_url=buyer.display_avatar.url)
-                
-                await interaction.channel.send(embed=vouch_embed)
         
         # Post updated stats ke #cmd-bot (async, non-blocking)
         import asyncio
