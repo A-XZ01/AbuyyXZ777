@@ -11,8 +11,8 @@ __pycache__/
 venv/
 env/
 
-# Database - TEMPORARILY INCLUDED FOR RENDER
-# data/bot_database.db
+# Database - keep local only
+data/bot_database.db
 
 # Backups (tidak perlu di-upload)
 data/backups/
