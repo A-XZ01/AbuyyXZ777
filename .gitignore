@@ -11,8 +11,8 @@ __pycache__/
 venv/
 env/
 
-# Database (akan di-upload manual atau gunakan Railway volume)
-data/bot_database.db
+# Database - TEMPORARILY INCLUDED FOR RENDER
+# data/bot_database.db
 
 # Backups (tidak perlu di-upload)
 data/backups/
