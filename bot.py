@@ -233,9 +233,9 @@ class UsernameModal(discord.ui.Modal, title="🎫 Create New Ticket"):
                             # Add TextInput to modal
                             self.quantity_input = discord.ui.TextInput(
                                 label="Quantity",
-                                placeholder="Masukkan jumlah (1-100)",
+                                placeholder="Masukkan jumlah (1-5)",
                                 min_length=1,
-                                max_length=3,
+                                max_length=1,
                                 required=True,
                                 style=discord.TextStyle.short
                             )
@@ -244,8 +244,8 @@ class UsernameModal(discord.ui.Modal, title="🎫 Create New Ticket"):
                         async def on_submit(self, modal_interaction: discord.Interaction):
                             try:
                                 qty = int(self.quantity_input.value)
-                                if qty < 1 or qty > 100:
-                                    await modal_interaction.response.send_message("❌ Quantity harus 1-100", ephemeral=True)
+                                if qty < 1 or qty > 5:
+                                    await modal_interaction.response.send_message("❌ Quantity harus 1-5", ephemeral=True)
                                     return
                                 
                                 # Add item to ticket
