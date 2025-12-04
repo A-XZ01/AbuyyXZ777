@@ -366,85 +366,85 @@ class BotDatabase:
                 cursor.execute("ALTER TABLE guild_config ADD COLUMN leaderboard_channel_id TEXT")
                 print("✅ Kolom leaderboard berhasil ditambahkan ke guild_config")
             except sqlite3.OperationalError as e:
-            # Kolom sudah ada, skip
-            if "duplicate column name" not in str(e).lower():
-                print(f"⚠️ ALTER TABLE warning: {e}")
-        
-        # ALTER TABLE untuk tambah kolom personal stats message tracking
-        try:
-            cursor.execute("ALTER TABLE user_stats ADD COLUMN stats_message_id TEXT")
-            cursor.execute("ALTER TABLE user_stats ADD COLUMN stats_channel_id TEXT")
-            print("✅ Kolom stats message tracking berhasil ditambahkan ke user_stats")
-        except sqlite3.OperationalError as e:
-            # Kolom sudah ada, skip
-            if "duplicate column name" not in str(e).lower():
-                print(f"⚠️ ALTER TABLE warning: {e}")
-        
-        # ALTER TABLE untuk tambah kolom fraud prevention tracking
-        try:
-            cursor.execute("ALTER TABLE tickets ADD COLUMN proof_url TEXT")
-            cursor.execute("ALTER TABLE tickets ADD COLUMN approved_by TEXT")
-            cursor.execute("ALTER TABLE tickets ADD COLUMN approved_at TIMESTAMP")
-            print("✅ Kolom fraud prevention tracking berhasil ditambahkan ke tickets")
-        except sqlite3.OperationalError as e:
-            # Kolom sudah ada, skip
-            if "duplicate column name" not in str(e).lower():
-                print(f"⚠️ ALTER TABLE warning: {e}")
-        
-        # ALTER TABLE untuk tambah kolom duplicate image detection
-        try:
-            cursor.execute("ALTER TABLE tickets ADD COLUMN proof_hash TEXT")
-            print("✅ Kolom proof_hash berhasil ditambahkan ke tickets")
-        except sqlite3.OperationalError as e:
-            # Kolom sudah ada, skip
-            if "duplicate column name" not in str(e).lower():
-                print(f"⚠️ ALTER TABLE warning: {e}")
-        
-        # ALTER TABLE untuk tambah kolom ticket setup tracking
-        try:
-            cursor.execute("ALTER TABLE guild_config ADD COLUMN ticket_setup_message_id TEXT")
-            cursor.execute("ALTER TABLE guild_config ADD COLUMN ticket_setup_channel_id TEXT")
-            cursor.execute("ALTER TABLE guild_config ADD COLUMN price_hash TEXT")
-            print("✅ Kolom ticket setup tracking berhasil ditambahkan ke guild_config")
-        except sqlite3.OperationalError as e:
-            # Kolom sudah ada, skip
-            if "duplicate column name" not in str(e).lower():
-                print(f"⚠️ ALTER TABLE warning: {e}")
-        
-        # ALTER TABLE untuk tambah kolom middleman system
-        try:
-            cursor.execute("ALTER TABLE tickets ADD COLUMN ticket_type TEXT DEFAULT 'purchase'")
-            cursor.execute("ALTER TABLE tickets ADD COLUMN seller_id TEXT")
-            cursor.execute("ALTER TABLE tickets ADD COLUMN seller_username TEXT")
-            cursor.execute("ALTER TABLE tickets ADD COLUMN item_description TEXT")
-            cursor.execute("ALTER TABLE tickets ADD COLUMN deal_price INTEGER")
-            cursor.execute("ALTER TABLE tickets ADD COLUMN mm_fee INTEGER DEFAULT 0")
-            cursor.execute("ALTER TABLE tickets ADD COLUMN mm_status TEXT")
-            cursor.execute("ALTER TABLE tickets ADD COLUMN seller_proof_url TEXT")
-            cursor.execute("ALTER TABLE tickets ADD COLUMN transfer_signature TEXT")
-            print("✅ Kolom middleman system berhasil ditambahkan ke tickets")
-        except sqlite3.OperationalError as e:
-            # Kolom sudah ada, skip
-            if "duplicate column name" not in str(e).lower():
-                print(f"⚠️ ALTER TABLE warning: {e}")
-        
-        # ALTER TABLE untuk tambah kolom fee_payer (NEW)
-        try:
-            cursor.execute("ALTER TABLE tickets ADD COLUMN fee_payer TEXT DEFAULT 'buyer'")
-            print("✅ Kolom fee_payer berhasil ditambahkan ke tickets")
-        except sqlite3.OperationalError as e:
-            # Kolom sudah ada, skip
-            if "duplicate column name" not in str(e).lower():
-                print(f"⚠️ ALTER TABLE warning: {e}")
-        
-        # ALTER TABLE untuk tambah kolom rate ke guild_config
-        try:
-            cursor.execute("ALTER TABLE guild_config ADD COLUMN robux_rate INTEGER DEFAULT 90")
-            print("✅ Kolom robux_rate berhasil ditambahkan ke guild_config")
-        except sqlite3.OperationalError as e:
-            # Kolom sudah ada, skip
-            if "duplicate column name" not in str(e).lower():
-                print(f"⚠️ ALTER TABLE warning: {e}")
+                # Kolom sudah ada, skip
+                if "duplicate column name" not in str(e).lower():
+                    print(f"⚠️ ALTER TABLE warning: {e}")
+            
+            # ALTER TABLE untuk tambah kolom personal stats message tracking
+            try:
+                cursor.execute("ALTER TABLE user_stats ADD COLUMN stats_message_id TEXT")
+                cursor.execute("ALTER TABLE user_stats ADD COLUMN stats_channel_id TEXT")
+                print("✅ Kolom stats message tracking berhasil ditambahkan ke user_stats")
+            except sqlite3.OperationalError as e:
+                # Kolom sudah ada, skip
+                if "duplicate column name" not in str(e).lower():
+                    print(f"⚠️ ALTER TABLE warning: {e}")
+            
+            # ALTER TABLE untuk tambah kolom fraud prevention tracking
+            try:
+                cursor.execute("ALTER TABLE tickets ADD COLUMN proof_url TEXT")
+                cursor.execute("ALTER TABLE tickets ADD COLUMN approved_by TEXT")
+                cursor.execute("ALTER TABLE tickets ADD COLUMN approved_at TIMESTAMP")
+                print("✅ Kolom fraud prevention tracking berhasil ditambahkan ke tickets")
+            except sqlite3.OperationalError as e:
+                # Kolom sudah ada, skip
+                if "duplicate column name" not in str(e).lower():
+                    print(f"⚠️ ALTER TABLE warning: {e}")
+            
+            # ALTER TABLE untuk tambah kolom duplicate image detection
+            try:
+                cursor.execute("ALTER TABLE tickets ADD COLUMN proof_hash TEXT")
+                print("✅ Kolom proof_hash berhasil ditambahkan ke tickets")
+            except sqlite3.OperationalError as e:
+                # Kolom sudah ada, skip
+                if "duplicate column name" not in str(e).lower():
+                    print(f"⚠️ ALTER TABLE warning: {e}")
+            
+            # ALTER TABLE untuk tambah kolom ticket setup tracking
+            try:
+                cursor.execute("ALTER TABLE guild_config ADD COLUMN ticket_setup_message_id TEXT")
+                cursor.execute("ALTER TABLE guild_config ADD COLUMN ticket_setup_channel_id TEXT")
+                cursor.execute("ALTER TABLE guild_config ADD COLUMN price_hash TEXT")
+                print("✅ Kolom ticket setup tracking berhasil ditambahkan ke guild_config")
+            except sqlite3.OperationalError as e:
+                # Kolom sudah ada, skip
+                if "duplicate column name" not in str(e).lower():
+                    print(f"⚠️ ALTER TABLE warning: {e}")
+            
+            # ALTER TABLE untuk tambah kolom middleman system
+            try:
+                cursor.execute("ALTER TABLE tickets ADD COLUMN ticket_type TEXT DEFAULT 'purchase'")
+                cursor.execute("ALTER TABLE tickets ADD COLUMN seller_id TEXT")
+                cursor.execute("ALTER TABLE tickets ADD COLUMN seller_username TEXT")
+                cursor.execute("ALTER TABLE tickets ADD COLUMN item_description TEXT")
+                cursor.execute("ALTER TABLE tickets ADD COLUMN deal_price INTEGER")
+                cursor.execute("ALTER TABLE tickets ADD COLUMN mm_fee INTEGER DEFAULT 0")
+                cursor.execute("ALTER TABLE tickets ADD COLUMN mm_status TEXT")
+                cursor.execute("ALTER TABLE tickets ADD COLUMN seller_proof_url TEXT")
+                cursor.execute("ALTER TABLE tickets ADD COLUMN transfer_signature TEXT")
+                print("✅ Kolom middleman system berhasil ditambahkan ke tickets")
+            except sqlite3.OperationalError as e:
+                # Kolom sudah ada, skip
+                if "duplicate column name" not in str(e).lower():
+                    print(f"⚠️ ALTER TABLE warning: {e}")
+            
+            # ALTER TABLE untuk tambah kolom fee_payer (NEW)
+            try:
+                cursor.execute("ALTER TABLE tickets ADD COLUMN fee_payer TEXT DEFAULT 'buyer'")
+                print("✅ Kolom fee_payer berhasil ditambahkan ke tickets")
+            except sqlite3.OperationalError as e:
+                # Kolom sudah ada, skip
+                if "duplicate column name" not in str(e).lower():
+                    print(f"⚠️ ALTER TABLE warning: {e}")
+            
+            # ALTER TABLE untuk tambah kolom rate ke guild_config
+            try:
+                cursor.execute("ALTER TABLE guild_config ADD COLUMN robux_rate INTEGER DEFAULT 90")
+                print("✅ Kolom robux_rate berhasil ditambahkan ke guild_config")
+            except sqlite3.OperationalError as e:
+                # Kolom sudah ada, skip
+                if "duplicate column name" not in str(e).lower():
+                    print(f"⚠️ ALTER TABLE warning: {e}")
         
         conn.commit()
         conn.close()
