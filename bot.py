@@ -223,13 +223,7 @@ class UsernameModal(discord.ui.Modal, title="🎫 Create New Ticket"):
                     "• ✅ Screenshot ASLI dari app banking\n"
                     "• ✅ Terlihat JELAS nama, nominal, tanggal\n"
                     "• ✅ Upload langsung tanpa edit apapun\n\n"
-                    "⚡ **Sistem akan AUTO-DETECT fraud!**\n"
-                    "Bot menggunakan **AI 4-Layer Fraud Detection**:\n"
-                    "• Layer 1: Transfer Signature (OCR)\n"
-                    "• Layer 1.5: Image Manipulation Detection\n"
-                    "• Layer 2: Perceptual Hash (Duplicate)\n"
-                    "• Layer 3: OCR Amount Validation\n\n"
-                    "🔒 Screenshot yang **EDIT/PALSU** akan **LANGSUNG DITOLAK**!"
+                    "🔒 Screenshot **EDIT/PALSU** akan **LANGSUNG DITOLAK**!"
                 ),
                 inline=False
             )
@@ -238,44 +232,99 @@ class UsernameModal(discord.ui.Modal, title="🎫 Create New Ticket"):
             
             await channel.send(f"{mention_text}", embed=welcome_embed)
             
-            # AUTO-TRIGGER /add command via select menu
+            # Create Select Menu untuk pilih item langsung
             from discord import SelectOption
             
-            class QuickAddView(discord.ui.View):
-                def __init__(self):
-                    super().__init__(timeout=300)  # 5 menit
+            class ItemSelectView(discord.ui.View):
+                def __init__(self, guild_id: int, ticket_id: int):
+                    super().__init__(timeout=None)  # Persistent
+                    self.guild_id = guild_id
+                    self.ticket_id = ticket_id
                 
                 @discord.ui.select(
                     placeholder="🛒 Pilih item yang ingin dibeli...",
                     min_values=1,
                     max_values=1,
-                    options=[
-                        SelectOption(label="Pilih Item", value="trigger_add", emoji="🛍️", description="Klik untuk membuka menu /add")
-                    ]
+                    custom_id="item_select_persistent"
                 )
                 async def select_callback(self, interaction: discord.Interaction, select: discord.ui.Select):
-                    # Trigger /add command
-                    await interaction.response.send_message(
-                        "🛒 **Silakan gunakan command `/add` untuk memilih item!**\n\n"
-                        "Ketik `/add` di chat, lalu pilih item dan quantity.",
-                        ephemeral=True
+                    selected_item_code = select.values[0]
+                    
+                    # Get item data
+                    item_data = db.get_item_price(self.guild_id, selected_item_code)
+                    
+                    if not item_data:
+                        await interaction.response.send_message("❌ Item tidak ditemukan.", ephemeral=True)
+                        return
+                    
+                    # Create modal untuk input quantity
+                    class QuantityModal(discord.ui.Modal, title=f"📊 Jumlah: {item_data['name']}"):
+                        quantity_input = discord.ui.TextInput(
+                            label="Quantity",
+                            placeholder="Masukkan jumlah (1-100)",
+                            min_length=1,
+                            max_length=3,
+                            required=True,
+                            style=discord.TextStyle.short
+                        )
+                        
+                        async def on_submit(modal_self, modal_interaction: discord.Interaction):
+                            try:
+                                qty = int(modal_self.quantity_input.value)
+                                if qty < 1 or qty > 100:
+                                    await modal_interaction.response.send_message("❌ Quantity harus 1-100", ephemeral=True)
+                                    return
+                                
+                                # Add item to ticket
+                                total_amount = item_data['price_idr'] * qty
+                                db.add_ticket_item(self.ticket_id, item_data['code'], item_data['name'], qty, total_amount)
+                                
+                                await modal_interaction.response.send_message(
+                                    f"✅ **Item ditambahkan!**\n\n"
+                                    f"🛍️ **Item:** {item_data['name']}\n"
+                                    f"📊 **Quantity:** {qty}x\n"
+                                    f"💰 **Harga:** {item_data['robux']} R$ • Rp{item_data['price_idr']:,}/pcs\n"
+                                    f"💵 **Subtotal:** Rp{total_amount:,}\n\n"
+                                    f"📝 Gunakan `/cart` untuk lihat semua item yang sudah dipilih.",
+                                    ephemeral=False
+                                )
+                            except ValueError:
+                                await modal_interaction.response.send_message("❌ Quantity harus angka!", ephemeral=True)
+                    
+                    await interaction.response.send_modal(QuantityModal())
+            
+            # Build dynamic options dari database
+            items = db.get_all_items(interaction.guild.id)
+            options = []
+            for item in items[:25]:  # Discord max 25 options
+                options.append(
+                    SelectOption(
+                        label=item['name'],
+                        value=item['code'],
+                        description=f"{item['robux']} R$ • Rp{item['price_idr']:,}",
+                        emoji="🎮"
                     )
+                )
+            
+            # Set options ke select menu
+            view = ItemSelectView(interaction.guild.id, ticket_id)
+            view.children[0].options = options
             
             add_prompt_embed = discord.Embed(
                 title="🛍️ Pilih Item",
                 description=(
                     f"{interaction.user.mention}\n\n"
-                    "**Silakan gunakan command `/add` untuk memilih item yang ingin dibeli!**\n\n"
-                    "Contoh:\n"
-                    "```\n"
-                    "/add\n"
-                    "```\n"
-                    "Lalu pilih item dari dropdown dan masukkan jumlah (quantity)."
+                    "⬇️ **Pilih item dari menu di bawah ini:**\n\n"
+                    "🔹 Klik dropdown menu\n"
+                    "🔹 Pilih item yang diinginkan\n"
+                    "🔹 Masukkan jumlah (quantity)\n"
+                    "🔹 Ulangi untuk item lain jika perlu\n\n"
+                    "📝 Gunakan `/cart` untuk lihat semua pesanan Anda"
                 ),
                 color=discord.Color.blue()
             )
             
-            await channel.send(embed=add_prompt_embed, view=QuickAddView())
+            await channel.send(embed=add_prompt_embed, view=view)
             
             # Notify user (redirect mereka ke channel)
             notify_message = await interaction.followup.send(
