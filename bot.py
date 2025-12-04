@@ -3079,168 +3079,6 @@ async def stats_command(interaction: discord.Interaction, user: Optional[discord
     )
 
     await interaction.response.send_message(embed=embed, ephemeral=False)
-# --- Slash Command: /weekly-leaderboard ---
-@client.tree.command(
-    name="weekly-leaderboard",
-    description="[OWNER] 🏆 Weekly Leaderboard - Reset Ranking Setiap Senin"
-)
-@app_commands.describe(
-    page='Halaman leaderboard (default: 1)',
-    per_page='Jumlah user per halaman (default: 10, max: 20)'
-)
-@app_commands.default_permissions(administrator=True)
-@owner_only()
-async def weekly_leaderboard_command(interaction: discord.Interaction, page: Optional[int] = 1, per_page: Optional[int] = 10):
-    await interaction.response.defer()
-    
-    try:
-        # Validasi
-        if page < 1:
-            page = 1
-        if per_page < 1 or per_page > 20:
-            per_page = 10
-        
-        # Ambil WEEKLY leaderboard - TOP 10
-        weekly_stats = db.get_weekly_leaderboard(interaction.guild.id, limit=10)
-        
-        if not weekly_stats:
-            await interaction.followup.send("❌ Belum ada data transaksi minggu ini.", ephemeral=True)
-            return
-
-        # Ambil member info dengan TIMEOUT protection
-        guild = interaction.guild
-        stats_list = []
-        
-        for stat in weekly_stats:
-            try:
-                # Add timeout untuk fetch_member (max 3 detik per user)
-                member = await asyncio.wait_for(
-                    guild.fetch_member(int(stat['user_id'])),
-                    timeout=3.0
-                )
-                stats_list.append((
-                    member.display_name,
-                    stat['deals_count'],
-                    stat['weekly_spend'],
-                    member
-                ))
-            except asyncio.TimeoutError:
-                # Timeout saat fetch member
-                stats_list.append((
-                    f"User {stat['user_id']}",
-                    stat['deals_count'],
-                    stat['weekly_spend'],
-                    None
-                ))
-            except Exception:
-                # User mungkin sudah keluar dari server
-                stats_list.append((
-                    f"User {stat['user_id']}",
-                    stat['deals_count'],
-                    stat['weekly_spend'],
-                    None
-                    ))
-
-        if not stats_list:
-            await interaction.followup.send("❌ Belum ada user di leaderboard.", ephemeral=True)
-            return
-        
-        # Pagination
-        total_users = len(stats_list)
-        total_pages = (total_users - 1) // per_page + 1
-        if page > total_pages:
-            page = total_pages
-        
-        start_idx = (page - 1) * per_page
-        end_idx = min(start_idx + per_page, total_users)
-        page_stats = stats_list[start_idx:end_idx]
-        
-        # Import datetime untuk week calculation
-        from datetime import datetime as dt, timedelta
-        
-        # Buat embed dengan tema SULTAN elegant & modern
-        embed = discord.Embed(
-            title="",
-            description="",
-            color=0xFFD700,  # Gold color
-            timestamp=dt.now()
-        )
-        
-        # Header elegant dengan crown
-        embed.set_author(
-            name="👑 Weekly Leaderboard — Top Sultan",
-            icon_url=interaction.guild.icon.url if interaction.guild.icon else None
-        )
-        
-        # Thumbnail server icon
-        if interaction.guild.icon:
-            embed.set_thumbnail(url=interaction.guild.icon.url)
-        
-        # Ranking icons - attractive for top 3, uniform for 4-10
-        ranking_emoji = {
-            1: "👑",  # Crown for #1
-            2: "🌟",  # Star for #2
-            3: "💎"   # Diamond for #3
-        }
-        
-        leaderboard_text = []
-        for idx, (name, deals, total_spend, member) in enumerate(page_stats, start_idx + 1):
-            # Top 3 get special icons, 4-10 get uniform numbering
-            if idx <= 3:
-                rank_emoji = ranking_emoji[idx]
-            else:
-                rank_emoji = f"▫️ `#{idx}`"
-            
-            # Format clean dengan separator
-            leaderboard_text.append(
-                f"{rank_emoji} **{name}** `Top {idx}`\n"
-                f"   **{deals}** transaksi • 💵 {format_idr(total_spend)}"
-            )
-    
-        # Description dengan layout minimalis elegant
-        embed.description = (
-            f"🏆 **Top {total_users} Sultan (Minggu Ini)**\n\n" +
-            "\n\n".join(leaderboard_text)
-        )
-        
-        # Get week info
-        week_start = db.get_current_week_start()
-        week_start_dt = dt.strptime(week_start, '%Y-%m-%d')
-        next_monday = week_start_dt + timedelta(days=7)
-        days_until_reset = (next_monday - dt.now()).days
-        
-        # Footer dengan info weekly
-        footer_text = f"📊 Weekly Stats • Reset dalam {days_until_reset} hari • Page {page}/{total_pages}"
-        
-        embed.set_footer(text=footer_text, icon_url=interaction.guild.icon.url if interaction.guild.icon else None)
-        
-        # ALWAYS send embed to user who requested
-        await interaction.followup.send(embed=embed, ephemeral=False)
-        
-        # ALSO post to #lb-rich-weekly if it exists
-        lb_weekly_channel = discord.utils.get(interaction.guild.text_channels, name="lb-rich-weekly")
-        
-        if lb_weekly_channel:
-            try:
-                await lb_weekly_channel.send(embed=embed)
-                print(f"✅ Weekly leaderboard also posted to #lb-rich-weekly")
-            except Exception as e:
-                print(f"⚠️ Failed to post to #lb-rich-weekly: {e}")
-    
-    except Exception as e:
-        # Global error handler untuk /weekly-leaderboard
-        print(f"❌ Error in /weekly-leaderboard: {e}")
-        import traceback
-        traceback.print_exc()
-        try:
-            await interaction.followup.send(
-                f"❌ Terjadi error saat generate leaderboard:\n```{str(e)[:200]}```",
-                ephemeral=True
-            )
-        except:
-            pass  # Interaction mungkin sudah expired
-
-
 # --- Slash Command: /allstats (All-Time Leaderboard) ---
 @client.tree.command(
     name="allstats",
@@ -3371,6 +3209,16 @@ async def allstats_command(interaction: discord.Interaction, page: Optional[int]
         
         # Send to user
         await interaction.followup.send(embed=embed, ephemeral=False)
+        
+        # ALSO post to #lb-rich-weekly if it exists
+        lb_weekly_channel = discord.utils.get(interaction.guild.text_channels, name="lb-rich-weekly")
+        
+        if lb_weekly_channel:
+            try:
+                await lb_weekly_channel.send(embed=embed)
+                print(f"✅ All-time leaderboard also posted to #lb-rich-weekly")
+            except Exception as e:
+                print(f"⚠️ Failed to post to #lb-rich-weekly: {e}")
     
     except Exception as e:
         print(f"❌ Error in /allstats: {e}")
