@@ -3329,6 +3329,9 @@ async def approve_ticket(interaction: discord.Interaction):
                 await interaction_btn.response.defer()
                 self.stop()
         
+        # Defer interaction dulu untuk avoid timeout
+        await interaction.response.defer(ephemeral=True)
+        
         # Show validation checklist
         checklist_embed = discord.Embed(
             title="🔐 Validasi Bukti Transfer",
@@ -3344,7 +3347,7 @@ async def approve_ticket(interaction: discord.Interaction):
         checklist_embed.set_footer(text="⏱️ Timeout: 2 menit • Anti-Fraud System")
         
         view = ValidationChecklist()
-        await interaction.response.send_message(embed=checklist_embed, view=view, ephemeral=True)
+        await interaction.followup.send(embed=checklist_embed, view=view, ephemeral=True)
         
         await view.wait()
         
