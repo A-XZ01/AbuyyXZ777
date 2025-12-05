@@ -26,17 +26,6 @@ if USE_POSTGRES:
 
 
 class BotDatabase:
-        def get_user_count(self):
-            """Menghitung jumlah user di tabel user_stats"""
-            query = "SELECT COUNT(*) as count FROM user_stats"
-            result = self.execute(query, fetch='one')
-            return result['count'] if result else 0
-
-        def get_transaction_count(self):
-            """Menghitung jumlah transaksi di tabel transactions"""
-            query = "SELECT COUNT(*) as count FROM transactions"
-            result = self.execute(query, fetch='one')
-            return result['count'] if result else 0
     def __init__(self, db_path: str):
         self.db_path = db_path
         self.use_postgres = USE_POSTGRES
@@ -164,7 +153,8 @@ class BotDatabase:
                     unlocked_at TIMESTAMP DEFAULT NOW(),
                     UNIQUE(guild_id, user_id, achievement_type, achievement_value)
                 )
-            """)
+            """
+            )
             
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS tickets (
@@ -1266,25 +1256,6 @@ class BotDatabase:
                     'channel_id': int(row[0]),
                     'message_id': int(row[1]),
                     'price_hash': row[2]
-                }
-            except (ValueError, TypeError):
-                return None
-        return None
-        conn = self.get_connection()
-        cursor = conn.cursor()
-        cursor.execute("""
-            SELECT stats_channel_id, stats_message_id
-            FROM user_stats
-            WHERE guild_id = ? AND user_id = ? AND stats_message_id IS NOT NULL AND stats_message_id != ''
-        """, (str(guild_id), str(user_id)))
-        row = cursor.fetchone()
-        conn.close()
-        
-        if row and row[0] and row[1] and str(row[0]) != '0' and str(row[1]) != '0':
-            try:
-                return {
-                    'channel_id': int(row[0]),
-                    'message_id': int(row[1])
                 }
             except (ValueError, TypeError):
                 return None

@@ -1,0 +1,13 @@
+📦 Using SQLite database: /workspaces/AbuyyXZ777/data/bot_database.db
+ * Serving Flask app ''
+ * Debug mode: off
+[2025-12-05 10:55:59] [INFO    ] discord.client: logging in using static token
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:8080
+ * Running on http://10.0.2.100:8080
+Press CTRL+C to quit
+[2025-12-05 10:56:00] [INFO    ] discord.gateway: Shard ID None has connected to Gateway (Session ID: fb4295f34bf708a25614dc8080d533b4).
+127.0.0.1 - - [05/Dec/2025 10:56:04] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [05/Dec/2025 10:56:17] "GET / HTTP/1.1" 200 -
+[2025-12-05 11:42:14] [INFO    ] discord.gateway: Shard ID None has successfully RESUMED session fb4295f34bf708a25614dc8080d533b4.
