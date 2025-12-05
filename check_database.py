@@ -1,5 +1,5 @@
 """
-Script untuk cek data di database (SQLite lokal vs PostgreSQL Render)
+Script untuk cek data di database (SQLite lokal vs opsional PostgreSQL)
 """
 import os
 import sys

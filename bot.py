@@ -16,7 +16,6 @@ from db import BotDatabase
 from PIL import Image
 import pytesseract
 import imagehash
-from keep_alive import keep_alive
 
 # Fungsi untuk kirim log/error ke channel #bot-log
 async def send_log_message(client, message):
@@ -3218,20 +3217,23 @@ async def add_item_autocomplete(interaction: discord.Interaction, current: str):
 @app_commands.default_permissions(administrator=True)
 async def approve_ticket(interaction: discord.Interaction):
     try:
+        # Defer immediately to prevent double-click issues
+        await interaction.response.defer(ephemeral=True)
+        
         ticket = db.get_ticket_by_channel(interaction.channel.id)
         
         if not ticket:
-            await interaction.response.send_message("❌ Command ini hanya bisa digunakan di ticket channel.", ephemeral=True)
+            await interaction.followup.send("❌ Command ini hanya bisa digunakan di ticket channel.", ephemeral=True)
             return
         
         if ticket['status'] != 'open':
-            await interaction.response.send_message("❌ Ticket ini sudah ditutup.", ephemeral=True)
+            await interaction.followup.send("❌ Ticket ini sudah ditutup.", ephemeral=True)
             return
         
         items = db.get_ticket_items(ticket['id'])
         
         if not items:
-            await interaction.response.send_message("❌ Tidak ada item di ticket ini.", ephemeral=True)
+            await interaction.followup.send("❌ Tidak ada item di ticket ini.", ephemeral=True)
             return
         
         grand_total = sum(i['amount'] for i in items)
@@ -3343,7 +3345,7 @@ async def approve_ticket(interaction: discord.Interaction):
         checklist_embed.set_footer(text="⏱️ Timeout: 2 menit • Anti-Fraud System")
         
         view = ValidationChecklist()
-        await interaction.response.send_message(embed=checklist_embed, view=view, ephemeral=True)
+        await interaction.followup.send(embed=checklist_embed, view=view, ephemeral=True)
         
         await view.wait()
         
@@ -5288,8 +5290,6 @@ async def reject_mm(interaction: discord.Interaction, reason: str = "Bukti tidak
 
 # --- Jalankan Bot ---
 if __name__ == '__main__':
-    keep_alive()
-
     @client.event
     async def on_ready():
         try:

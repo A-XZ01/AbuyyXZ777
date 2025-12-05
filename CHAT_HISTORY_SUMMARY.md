@@ -1,4 +1,4 @@
-# Discord Bot - Riwayat Perubahan & Setup
+!(image.png)# Discord Bot - Riwayat Perubahan & Setup
 
 **Tanggal:** 5 Desember 2025 (Updated - 14:40 WIB)
 **Bot Name:** ASBLOX  
@@ -20,9 +20,9 @@
 - ✅ **SSH Key** configured untuk secure access
 - ✅ **Deploy scripts** - 4 PowerShell scripts untuk easy deployment
 
-### **🚀 PowerShell Deploy Scripts:**
+### **🚀 PowerShell Deploy Scripts (DigitalOcean):**
 1. **deploy.ps1** - Deploy dengan custom commit message
-2. **quick-deploy.ps1** - Deploy cepat dengan auto-message
+2. **deploy-simple.ps1** - Deploy cepat dengan auto-message
 3. **check-bot.ps1** - Cek status dan logs bot
 4. **restart-bot.ps1** - Restart bot tanpa update code
 
@@ -64,7 +64,7 @@
 
 ### **Bot Token & Credentials:**
 ```
-BOT_TOKEN: (Stored in Render environment variable - DISCORD_BOT_TOKEN)
+DISCORD_BOT_TOKEN: simpan di .env di server (Supervisor env)
 CLIENT_ID: 1444283486121758891
 GUILD_ID: 1445079009405833299 (ASBLOX Server)
 ```
@@ -73,12 +73,6 @@ GUILD_ID: 1445079009405833299 (ASBLOX Server)
 ```
 https://discord.com/api/oauth2/authorize?client_id=1444283486121758891&permissions=8&scope=bot%20applications.commands
 ```
-
-### **Render Service:**
-- **URL:** https://abuyxz777.onrender.com
-- **Repository:** A-XZ01/AbuyyXZ777 (branch: main)
-- **Auto-Deploy:** ON (deploy otomatis saat push ke GitHub)
-- **Keep-Alive:** Sudah setup dengan Flask server + cron-job.org
 
 ---
 
@@ -121,26 +115,12 @@ Footer: Tanpa emoji, clean text saja
 
 ---
 
-### **2. Deployment - Railway → Render**
+### **2. Deployment - DigitalOcean (Supervisor)**
 
-#### **Masalah Railway:**
-- ❌ Crash karena missing decorator `admin_or_owner()`
-- ❌ Python version salah (3.14.0 tidak ada)
-- ❌ User tidak punya credit card
-
-#### **Solusi Render.com:**
-- ✅ Free tier tanpa credit card
-- ✅ Auto-deploy dari GitHub
-- ✅ Python 3.12.0
-- ✅ Keep-alive system dengan Flask
-
-#### **File Deploy:**
-```
-runtime.txt: python-3.12.0
-requirements.txt: discord.py, Flask, dll
-keep_alive.py: Flask server port 8080 (anti-sleep)
-Procfile: python bot.py
-```
+- ✅ Bot dijalankan via Supervisor service `discordbot`
+- ✅ Deploy via git pull + supervisorctl restart (lihat skrip PowerShell)
+- ✅ Tidak pakai keep-alive Flask / Procfile / runtime.txt
+- ✅ DATABASE_URL opsional untuk PostgreSQL; default SQLite di server
 
 ---
 
@@ -192,22 +172,16 @@ get_leaderboard()        # Query all-time stats
 
 ## 🚀 WORKFLOW DEPLOYMENT
 
-### **Alur Kerja Sekarang:**
+### **Alur Kerja Sekarang (DigitalOcean):**
 1. Edit code di local (VS Code)
 2. Git commit & push ke GitHub
-3. **Render auto-deploy** (tunggu 2-3 menit)
-4. Bot restart otomatis
-5. Test command di Discord
+3. Jalankan **deploy.ps1** atau **deploy-simple.ps1** (ssh ke droplet → git pull → supervisorctl restart)
+4. Cek status dengan **check-bot.ps1** (lihat supervisor status + tail log)
+5. Bot tetap 24/7 via Supervisor, tidak butuh keep-alive Flask
 
 ### **Cara Cek Bot Online:**
-- Buka: https://abuyxz777.onrender.com
-- Jika muncul "Bot is alive!" = Bot online ✅
-- Atau lihat status bot di Discord member list
-
-### **Keep-Alive Setup:**
-- URL: https://abuyxz777.onrender.com
-- Cron: cron-job.org (ping setiap 10 menit)
-- Mencegah Render sleep setelah 15 menit idle
+- `ssh root@159.223.71.87` kemudian `supervisorctl status discordbot`
+- Lihat presence bot di Discord member list
 
 ---
 
@@ -267,16 +241,17 @@ pytesseract>=0.3.10
 Pillow>=10.0.0
 aiohttp>=3.8.0
 imagehash>=4.3.1
-Flask>=3.0.0
+psycopg2-binary>=2.9.9
 ```
 
 ---
 
-## 🔐 ENVIRONMENT VARIABLES (Render)
+## 🔐 ENVIRONMENT VARIABLES (Server)
 
 ```
-DISCORD_BOT_TOKEN = (Set in Render dashboard - Environment tab)
+DISCORD_BOT_TOKEN = simpan di .env server atau Supervisor env
 GUILD_ID = 1445079009405833299
+DATABASE_URL = (opsional, PostgreSQL jika ingin)
 ```
 
 ---
@@ -289,35 +264,32 @@ GUILD_ID = 1445079009405833299
 3. Restart Discord client
 
 ### **Bot Offline:**
-1. Cek Render dashboard: https://dashboard.render.com
-2. Cek logs untuk error
-3. Verify keep-alive cron job aktif
+1. SSH atau jalankan **check-bot.ps1**
+2. `supervisorctl status discordbot`
+3. `tail -n 200 /var/log/discordbot.out.log`
 
-### **Database Kosong di Render:**
-- Database di Render mulai dari 0
-- Buat transaksi baru untuk populate data
-- Database lokal ≠ database Render
+### **Database Kosong di Server:**
+- Default SQLite di `/root/AbuyyXZ777/data/bot_database.db`
+- Untuk PostgreSQL, set `DATABASE_URL` lalu restart bot
 
 ---
 
 ## 📌 IMPORTANT NOTES (Updated Dec 5)
 
-1. **Auto-Deploy ON** - Tidak perlu manual deploy lagi
-2. **Git Push = Auto Deploy** - Tunggu 2-3 menit
-3. **Keep-Alive Aktif** - Bot tidak sleep
-4. **Database Fresh** - SQLite dengan schema lengkap (Dec 5, 2025)
-5. **Server Whitelist** - Hanya ASBLOX server (ID: 1445079009405833299)
-6. **PostgreSQL Ready** - Set DATABASE_URL untuk auto-switch
-7. **No Database in Git** - Database file di-ignore, local only
+1. Deploy via **deploy.ps1/deploy-simple.ps1** (ssh + supervisor restart)
+2. Tidak pakai keep-alive Flask/Render; Supervisor jaga 24/7
+3. Database default: SQLite on-server (Dec 5, 2025 schema)
+4. Server whitelist: hanya ASBLOX (ID: 1445079009405833299)
+5. PostgreSQL ready via `DATABASE_URL` (opsional)
+6. Database file tidak di-commit
 
 ---
 
 ## 🔗 USEFUL LINKS
 
 - **GitHub Repo:** https://github.com/A-XZ01/AbuyyXZ777
-- **Render Dashboard:** https://dashboard.render.com
-- **Bot Service URL:** https://abuyxz777.onrender.com
-- **Cron Job:** https://cron-job.org
+- **Droplet IP (SSH):** 159.223.71.87
+- **Supervisor Service:** discordbot (log: /var/log/discordbot.out.log)
 
 ---
 
@@ -327,9 +299,8 @@ GUILD_ID = 1445079009405833299
 - [x] Rename `/setup-leaderboard` → `/daily-leaderboard`
 - [x] Ubah weekly → daily stats
 - [x] Auto-update 2 jam → 1 jam
-- [x] Fix Railway deployment issues
-- [x] Migrate to Render.com
-- [x] Setup keep-alive system
+- [x] Migrasi ke DigitalOcean + Supervisor
+- [x] Hapus ketergantungan Render/Railway/keep_alive
 - [x] Fix `/allstats` double post
 - [x] Remove emoji from title/footer
 - [x] Keep ranking icons (top 1-3, 4-10)
