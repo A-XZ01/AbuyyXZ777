@@ -3118,6 +3118,7 @@ async def allstats_command(interaction: discord.Interaction):
 @app_commands.describe(
     item='Pilih item yang ingin dibeli'
 )
+@app_commands.default_permissions(administrator=True)
 async def add_item(interaction: discord.Interaction, item: str):
     await interaction.response.defer()
     
