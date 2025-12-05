@@ -1,14 +1,32 @@
 # Discord Bot - Riwayat Perubahan & Setup
 
-**Tanggal:** 5 Desember 2025 (Updated - 14:00 WIB)
+**Tanggal:** 5 Desember 2025 (Updated - 14:40 WIB)
 **Bot Name:** ASBLOX  
-**Platform:** Render.com (Free Tier)  
+**Platform:** DigitalOcean Droplet (Ubuntu 24.04 LTS)  
+**Server IP:** 159.223.71.87
 **Repository:** https://github.com/A-XZ01/AbuyyXZ777
 **Database:** SQLite (Fresh Schema - Dec 5, 2025)
 
 ---
 
-## 🆕 UPDATE TERBARU (5 Desember 2025)
+## 🆕 UPDATE TERBARU (5 Desember 2025 - 14:40 WIB)
+
+### **✅ MIGRASI KE DIGITALOCEAN SELESAI:**
+- ✅ **Droplet Created** - Ubuntu 24.04 LTS di Singapore region
+- ✅ **IP Address:** 159.223.71.87
+- ✅ **Python 3.12** installed dengan virtual environment
+- ✅ **Bot deployed** - running 24/7 dengan Supervisor
+- ✅ **Auto-restart** enabled - bot restart otomatis kalau crash
+- ✅ **SSH Key** configured untuk secure access
+- ✅ **Deploy scripts** - 4 PowerShell scripts untuk easy deployment
+
+### **🚀 PowerShell Deploy Scripts:**
+1. **deploy.ps1** - Deploy dengan custom commit message
+2. **quick-deploy.ps1** - Deploy cepat dengan auto-message
+3. **check-bot.ps1** - Cek status dan logs bot
+4. **restart-bot.ps1** - Restart bot tanpa update code
+
+### **Previous Updates:**
 
 ### **UI/UX Improvements:**
 - ✅ **Middleman ticket embed** - minimized dari 8 fields ke 4 fields
