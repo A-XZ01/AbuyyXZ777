@@ -26,6 +26,17 @@ if USE_POSTGRES:
 
 
 class BotDatabase:
+        def get_user_count(self):
+            """Menghitung jumlah user di tabel user_stats"""
+            query = "SELECT COUNT(*) as count FROM user_stats"
+            result = self.execute(query, fetch='one')
+            return result['count'] if result else 0
+
+        def get_transaction_count(self):
+            """Menghitung jumlah transaksi di tabel transactions"""
+            query = "SELECT COUNT(*) as count FROM transactions"
+            result = self.execute(query, fetch='one')
+            return result['count'] if result else 0
     def __init__(self, db_path: str):
         self.db_path = db_path
         self.use_postgres = USE_POSTGRES

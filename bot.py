@@ -18,6 +18,18 @@ import pytesseract
 import imagehash
 from keep_alive import keep_alive
 
+# Fungsi untuk kirim log/error ke channel #bot-log
+async def send_log_message(client, message):
+    channel_id = 1446407395826995210  # ID #bot-log
+    channel = client.get_channel(channel_id)
+    if channel:
+        try:
+            await channel.send(message)
+        except Exception:
+            pass
+    else:
+        print(f"[LOG] {message}")
+
 
 # --- Button & Modal untuk Ticket System ---
 class UsernameModal(discord.ui.Modal, title="🎫 Create New Ticket"):
@@ -5276,14 +5288,31 @@ async def reject_mm(interaction: discord.Interaction, reason: str = "Bukti tidak
 
 # --- Jalankan Bot ---
 if __name__ == '__main__':
-    # Start keep-alive server untuk prevent sleep di Render
     keep_alive()
-    
+
+    @client.event
+    async def on_ready():
+        try:
+            await send_log_message(client, f"✅ Bot berhasil di-restart dan online! (PID: {os.getpid()})")
+        except Exception:
+            pass
+
     try:
-        # Gunakan TOKEN yang sudah dimuat dari .env
         client.run(TOKEN)
     except discord.LoginFailure:
         print("❌ ERROR: Token bot tidak valid. Cek kembali token di file .env.")
+        try:
+            import asyncio
+            asyncio.run(send_log_message(client, "❌ ERROR: Token bot tidak valid. Cek kembali token di file .env."))
+        except Exception:
+            pass
     except Exception as e:
-        print(f"❌ ERROR: Terjadi kesalahan saat menjalankan bot: {e}")
+        import traceback
+        error_text = f"❌ ERROR: Terjadi kesalahan saat menjalankan bot: {e}\n{traceback.format_exc()}"
+        print(error_text)
+        try:
+            import asyncio
+            asyncio.run(send_log_message(client, error_text))
+        except Exception:
+            pass
 
