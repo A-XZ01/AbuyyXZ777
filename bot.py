@@ -629,38 +629,23 @@ class MiddlemanModal(discord.ui.Modal, title="🤝 Create Middleman Ticket"):
             )
             
             welcome_embed.add_field(
-                name="👤 Buyer",
-                value=f"{interaction.user.mention}\nUsername: `{buyer_username}`",
-                inline=True
-            )
-            
-            welcome_embed.add_field(
-                name="👤 Seller",
-                value=f"`{seller_username}`",
-                inline=True
-            )
-            
-            welcome_embed.add_field(
-                name="\u200b",
-                value="\u200b",
-                inline=True
-            )
-            
-            welcome_embed.add_field(
-                name="📦 Item/Jasa",
-                value=f"`{item_desc}`",
+                name="👥 Pihak Terlibat",
+                value=(
+                    f"**Buyer:** {interaction.user.mention} (`{buyer_username}`)\n"
+                    f"**Seller:** `{seller_username}`\n"
+                    f"**Item:** {item_desc}"
+                ),
                 inline=False
             )
             
             welcome_embed.add_field(
-                name="💰 Detail Pembayaran",
+                name="💰 Rincian Pembayaran",
                 value=(
-                    f"**Harga Deal:** Rp{deal_price:,}\n"
-                    f"**Fee Middleman:** Rp{mm_fee:,}\n"
-                    f"{fee_info}\n"
+                    f"Harga Deal: **Rp{deal_price:,}**\n"
+                    f"Fee Middleman: Rp{mm_fee:,} {fee_info}\n"
                     f"━━━━━━━━━━━━━━━\n"
-                    f"**Buyer Transfer:** **Rp{total_payment:,}**\n"
-                    f"**Seller Terima:** **Rp{seller_receives:,}**"
+                    f"Buyer Transfer: **Rp{total_payment:,}**\n"
+                    f"Seller Terima: **Rp{seller_receives:,}**"
                 ),
                 inline=False
             )
@@ -678,53 +663,31 @@ class MiddlemanModal(discord.ui.Modal, title="🤝 Create Middleman Ticket"):
                 mention_text += " ".join(admin_mentions)
             
             welcome_embed.add_field(
-                name="👥 Admin/Middleman",
-                value=f"{mention_text}\n*Admin akan memfasilitasi transaksi ini*",
-                inline=False
-            )
-            
-            welcome_embed.add_field(
                 name="📋 Alur Transaksi",
                 value=(
-                    "**Step 1:** Buyer transfer **Rp{:,}** ke rekening middleman\n"
-                    "**Step 2:** Upload bukti transfer (screenshot ASLI)\n"
-                    "**Step 3:** Admin verifikasi pembayaran buyer\n"
-                    "**Step 4:** Seller kirim item/jasa ke buyer\n"
-                    "**Step 5:** Seller upload bukti pengiriman\n"
-                    "**Step 6:** Admin approve & release dana ke seller\n\n"
-                    "**Note:** Gunakan `/close` jika ada pembatalan"
-                ).format(total_payment),
-                inline=False
-            )
-            
-            welcome_embed.add_field(
-                name="💳 Pembayaran",
-                value=(
-                    f"**Total Transfer:** Rp{total_payment:,}\n\n"
-                    "Admin akan memberikan QRIS untuk pembayaran."
+                    f"**1.** Buyer transfer **Rp{total_payment:,}** (admin kasih QRIS)\n"
+                    f"**2.** Upload bukti transfer screenshot ASLI\n"
+                    f"**3.** Admin verifikasi pembayaran\n"
+                    f"**4.** Seller kirim item/jasa ke buyer\n"
+                    f"**5.** Seller upload bukti pengiriman\n"
+                    f"**6.** Admin release dana ke seller\n\n"
+                    f"Admin: {mention_text}"
                 ),
                 inline=False
             )
             
-            # WARNING
+            # WARNING - Simplified
             welcome_embed.add_field(
-                name="⚠️ PENTING: Bukti Transfer",
+                name="⚠️ Bukti Transfer",
                 value=(
-                    "🚨 **Buyer & Seller WAJIB upload bukti ASLI!**\n\n"
-                    "❌ **DILARANG:**\n"
-                    "• Crop/edit screenshot\n"
-                    "• Blur/mosaic data\n"
-                    "• Gunakan gambar palsu\n\n"
-                    "✅ **WAJIB:**\n"
-                    "• Screenshot FULL & ASLI\n"
-                    "• Terlihat jelas semua detail\n\n"
-                    "⚡ **4-Layer Fraud Detection Active!**\n"
-                    "Screenshot palsu akan langsung ditolak."
+                    f"✅ Screenshot FULL & ASLI (semua detail terlihat)\n"
+                    f"❌ DILARANG: Crop/blur/edit/fake screenshot\n\n"
+                    f"⚡ **Fraud Detection Active** - Bukti palsu ditolak otomatis"
                 ),
                 inline=False
             )
             
-            welcome_embed.set_footer(text=f"Middleman Ticket #{ticket_number:04d} • Status: Waiting Buyer Payment")
+            welcome_embed.set_footer(text=f"Middleman Ticket #{ticket_number:04d} • Waiting Buyer Payment | {datetime.now().strftime('%d %b %Y, %H:%M')}")
             
             await channel.send(embed=welcome_embed)
             
