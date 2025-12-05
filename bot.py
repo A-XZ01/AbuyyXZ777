@@ -3249,13 +3249,13 @@ async def approve_ticket(interaction: discord.Interaction):
             return
         
         if ticket['status'] != 'open':
-            await interaction.response.send_message("❌ Ticket ini sudah ditutup.", ephemeral=True)
+            await interaction.followup.send("❌ Ticket ini sudah ditutup.", ephemeral=True)
             return
         
         items = db.get_ticket_items(ticket['id'])
         
         if not items:
-            await interaction.response.send_message("❌ Tidak ada item di ticket ini.", ephemeral=True)
+            await interaction.followup.send("❌ Tidak ada item di ticket ini.", ephemeral=True)
             return
         
         grand_total = sum(i['amount'] for i in items)
