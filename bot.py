@@ -1847,7 +1847,7 @@ class MyClient(discord.Client):
         
         # Buat embed modern
         embed = discord.Embed(
-            title="Daily Leaderboard — Top Sultan Hari Ini",
+            title="Hourly Leaderboard — Top Sultan 1 Jam Terakhir",
             description="",
             color=0x00D9FF,  # Cyan modern
             timestamp=dt.now()
@@ -1879,14 +1879,14 @@ class MyClient(discord.Client):
                 
                 leaderboard_lines.append(
                     f"{rank} **{name}**\n"
-                    f"{stat['deals_count']} deals • **{format_idr(stat['daily_spend'])}**"
+                    f"{stat['deals_count']} deals • **{format_idr(stat['hourly_spend'])}**"
                 )
             
             embed.description = "\n\n".join(leaderboard_lines)
         
         # Footer
         embed.set_footer(
-            text="🔄 Auto-update setiap 1 jam • Reset tiap midnight",
+            text="🔄 Auto-update setiap 1 jam • Rolling window 1 jam",
             icon_url=guild.icon.url if guild.icon else None
         )
         
@@ -4982,7 +4982,7 @@ async def daily_leaderboard(interaction: discord.Interaction):
         
         # Buat embed baru
         embed = discord.Embed(
-            title="Daily Leaderboard — Top Sultan Hari Ini",
+            title="Hourly Leaderboard — Top Sultan 1 Jam Terakhir",
             description="",
             color=0x00D9FF,  # Cyan modern
             timestamp=dt.now()
@@ -5014,14 +5014,14 @@ async def daily_leaderboard(interaction: discord.Interaction):
                 
                 leaderboard_lines.append(
                     f"{rank} **{name}**\n"
-                    f"{stat['deals_count']} deals • **{format_idr(stat['daily_spend'])}**"
+                    f"{stat['deals_count']} deals • **{format_idr(stat['hourly_spend'])}**"
                 )
             
             embed.description = "\n\n".join(leaderboard_lines)
         
         # Footer
         embed.set_footer(
-            text="Auto-update setiap 1 jam • Reset tiap midnight",
+            text="Auto-update setiap 1 jam • Rolling window 1 jam",
             icon_url=interaction.guild.icon.url if interaction.guild.icon else None
         )
         

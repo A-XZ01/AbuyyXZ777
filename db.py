@@ -747,36 +747,47 @@ class BotDatabase:
         ]
     
     def get_daily_leaderboard(self, guild_id: int, limit: int = None) -> List[Dict[str, Any]]:
-        """Ambil leaderboard berdasarkan transaksi hari ini"""
-        from datetime import datetime
-        today = datetime.now().strftime('%Y-%m-%d')
+        """Ambil leaderboard rolling 1 jam terakhir (bukan harian lagi)"""
         conn = self.get_connection()
         cursor = conn.cursor()
-        
-        # Query transaksi hari ini, group by user
-        query = """
-            SELECT 
-                user_id,
-                SUM(amount) as daily_spend,
-                COUNT(*) as deals_count
-            FROM transactions
-            WHERE guild_id = ? AND DATE(timestamp) = ?
-            GROUP BY user_id
-            ORDER BY daily_spend DESC
-        """
-        
+
+        if self.use_postgres:
+            query = """
+                SELECT 
+                    user_id,
+                    SUM(amount) AS hourly_spend,
+                    COUNT(*) AS deals_count
+                FROM transactions
+                WHERE guild_id = %s AND timestamp >= NOW() - INTERVAL '1 hour'
+                GROUP BY user_id
+                ORDER BY hourly_spend DESC
+            """
+            params = (str(guild_id),)
+        else:
+            query = """
+                SELECT 
+                    user_id,
+                    SUM(amount) AS hourly_spend,
+                    COUNT(*) AS deals_count
+                FROM transactions
+                WHERE guild_id = ? AND timestamp >= datetime('now', '-1 hour')
+                GROUP BY user_id
+                ORDER BY hourly_spend DESC
+            """
+            params = (str(guild_id),)
+
         if limit:
             query += f" LIMIT {limit}"
-        
-        cursor.execute(query, (str(guild_id), today))
-        
+
+        cursor.execute(query, params)
+
         rows = cursor.fetchall()
         conn.close()
-        
+
         return [
             {
                 'user_id': row['user_id'],
-                'daily_spend': row['daily_spend'],
+                'hourly_spend': row['hourly_spend'],
                 'deals_count': row['deals_count']
             }
             for row in rows
