@@ -3219,21 +3219,33 @@ async def add_item_autocomplete(interaction: discord.Interaction, current: str):
 @app_commands.default_permissions(administrator=True)
 async def approve_ticket(interaction: discord.Interaction):
     try:
-        # Debug logging
-        print(f"\n🔍 [APPROVE-TICKET] DEBUG:")
+        # Debug logging dengan timestamp
+        from datetime import datetime
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        print(f"\n{'='*80}")
+        print(f"[{timestamp}] 🔍 [APPROVE-TICKET] COMMAND STARTED")
+        print(f"{'='*80}")
         print(f"   Channel: {interaction.channel.name} (ID: {interaction.channel.id})")
         print(f"   Guild: {interaction.guild.name} (ID: {interaction.guild.id})")
         print(f"   User: {interaction.user.name} (ID: {interaction.user.id})")
+        print(f"   Querying database for ticket...")
         
         ticket = db.get_ticket_by_channel(interaction.channel.id)
-        print(f"   Ticket found: {ticket is not None}")
+        
+        print(f"   Ticket found in DB: {ticket is not None}")
         if ticket:
-            print(f"   Ticket #: {ticket.get('ticket_number')}")
-            print(f"   Status: {ticket.get('status')}")
+            print(f"   ✅ Ticket #: {ticket.get('ticket_number')}")
+            print(f"   ✅ Status: {ticket.get('status')}")
+        else:
+            print(f"   ❌ NO TICKET FOUND FOR THIS CHANNEL!")
+        
+        # Defer FIRST to avoid timeout
+        await interaction.response.defer(ephemeral=True)
+        print(f"   ✅ Interaction deferred")
         
         if not ticket:
-            print(f"   ❌ Error: Ticket not found in database")
-            await interaction.response.send_message("❌ Command ini hanya bisa digunakan di ticket channel.", ephemeral=True)
+            print(f"   Sending error message...")
+            await interaction.followup.send("❌ Command ini hanya bisa digunakan di ticket channel.", ephemeral=True)
             return
         
         if ticket['status'] != 'open':

@@ -11,3 +11,40 @@ Press CTRL+C to quit
 127.0.0.1 - - [05/Dec/2025 10:56:04] "GET / HTTP/1.1" 200 -
 127.0.0.1 - - [05/Dec/2025 10:56:17] "GET / HTTP/1.1" 200 -
 [2025-12-05 11:42:14] [INFO    ] discord.gateway: Shard ID None has successfully RESUMED session fb4295f34bf708a25614dc8080d533b4.
+[2025-12-05 12:17:38] [ERROR   ] discord.ui.view: Ignoring exception in view <CreateTicketButton timeout=None children=1> for item <Button style=<ButtonStyle.primary: 1> url=None disabled=False label='Create Ticket' emoji=<PartialEmoji animated=False name='🎫' id=None> row=None sku_id=None id=None>
+Traceback (most recent call last):
+  File "/home/codespace/.local/lib/python3.12/site-packages/discord/ui/view.py", line 555, in _scheduled_task
+    await item.callback(interaction)
+  File "/workspaces/AbuyyXZ777/bot.py", line 427, in create_ticket
+    await interaction.response.send_modal(modal)
+  File "/home/codespace/.local/lib/python3.12/site-packages/discord/interactions.py", line 1273, in send_modal
+    response = await adapter.create_interaction_response(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/codespace/.local/lib/python3.12/site-packages/discord/webhook/async_.py", line 226, in request
+    raise HTTPException(response, data)
+discord.errors.HTTPException: 400 Bad Request (error code: 40060): Interaction has already been acknowledged.
+[2025-12-05 12:24:47] [ERROR   ] discord.app_commands.tree: Ignoring exception in command 'reset-all-tickets'
+Traceback (most recent call last):
+  File "/home/codespace/.local/lib/python3.12/site-packages/discord/app_commands/commands.py", line 859, in _do_call
+    return await self._callback(interaction, **params)  # type: ignore
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspaces/AbuyyXZ777/bot.py", line 2717, in reset_all_tickets
+    await interaction.response.send_message(
+  File "/home/codespace/.local/lib/python3.12/site-packages/discord/interactions.py", line 1051, in send_message
+    response = await adapter.create_interaction_response(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/codespace/.local/lib/python3.12/site-packages/discord/webhook/async_.py", line 224, in request
+    raise NotFound(response, data)
+discord.errors.NotFound: 404 Not Found (error code: 10062): Unknown interaction
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/codespace/.local/lib/python3.12/site-packages/discord/app_commands/tree.py", line 1297, in _call
+    await command._invoke_with_namespace(interaction, namespace)
+  File "/home/codespace/.local/lib/python3.12/site-packages/discord/app_commands/commands.py", line 884, in _invoke_with_namespace
+    return await self._do_call(interaction, transformed_values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/codespace/.local/lib/python3.12/site-packages/discord/app_commands/commands.py", line 877, in _do_call
+    raise CommandInvokeError(self, e) from e
+discord.app_commands.errors.CommandInvokeError: Command 'reset-all-tickets' raised an exception: NotFound: 404 Not Found (error code: 10062): Unknown interaction
