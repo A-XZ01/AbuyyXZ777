@@ -3219,9 +3219,20 @@ async def add_item_autocomplete(interaction: discord.Interaction, current: str):
 @app_commands.default_permissions(administrator=True)
 async def approve_ticket(interaction: discord.Interaction):
     try:
+        # Debug logging
+        print(f"\n🔍 [APPROVE-TICKET] DEBUG:")
+        print(f"   Channel: {interaction.channel.name} (ID: {interaction.channel.id})")
+        print(f"   Guild: {interaction.guild.name} (ID: {interaction.guild.id})")
+        print(f"   User: {interaction.user.name} (ID: {interaction.user.id})")
+        
         ticket = db.get_ticket_by_channel(interaction.channel.id)
+        print(f"   Ticket found: {ticket is not None}")
+        if ticket:
+            print(f"   Ticket #: {ticket.get('ticket_number')}")
+            print(f"   Status: {ticket.get('status')}")
         
         if not ticket:
+            print(f"   ❌ Error: Ticket not found in database")
             await interaction.response.send_message("❌ Command ini hanya bisa digunakan di ticket channel.", ephemeral=True)
             return
         
