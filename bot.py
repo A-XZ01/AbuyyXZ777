@@ -16,6 +16,7 @@ from db import BotDatabase
 from PIL import Image
 import pytesseract
 import imagehash
+from keep_alive import keep_alive
 
 # Fungsi untuk kirim log/error ke channel #bot-log
 async def send_log_message(client, message):
@@ -1846,7 +1847,7 @@ class MyClient(discord.Client):
         
         # Buat embed modern
         embed = discord.Embed(
-            title="Daily Leaderboard — Top Sultan Hari Ini",
+            title="Hourly Leaderboard — Top Sultan 1 Jam Terakhir",
             description="",
             color=0x00D9FF,  # Cyan modern
             timestamp=dt.now()
@@ -1878,14 +1879,14 @@ class MyClient(discord.Client):
                 
                 leaderboard_lines.append(
                     f"{rank} **{name}**\n"
-                    f"{stat['deals_count']} deals • **{format_idr(stat['daily_spend'])}**"
+                    f"{stat['deals_count']} deals • **{format_idr(stat['hourly_spend'])}**"
                 )
             
             embed.description = "\n\n".join(leaderboard_lines)
         
         # Footer
         embed.set_footer(
-            text="🔄 Auto-update setiap 1 jam • Reset tiap midnight",
+            text="🔄 Auto-update setiap 1 jam • Rolling window 1 jam",
             icon_url=guild.icon.url if guild.icon else None
         )
         
@@ -3117,6 +3118,7 @@ async def allstats_command(interaction: discord.Interaction):
 @app_commands.describe(
     item='Pilih item yang ingin dibeli'
 )
+@app_commands.default_permissions(administrator=True)
 async def add_item(interaction: discord.Interaction, item: str):
     await interaction.response.defer()
     
@@ -3217,23 +3219,43 @@ async def add_item_autocomplete(interaction: discord.Interaction, current: str):
 @app_commands.default_permissions(administrator=True)
 async def approve_ticket(interaction: discord.Interaction):
     try:
-        # Defer immediately to prevent double-click issues
-        await interaction.response.defer(ephemeral=True)
+        # Debug logging dengan timestamp
+        from datetime import datetime
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        print(f"\n{'='*80}")
+        print(f"[{timestamp}] 🔍 [APPROVE-TICKET] COMMAND STARTED")
+        print(f"{'='*80}")
+        print(f"   Channel: {interaction.channel.name} (ID: {interaction.channel.id})")
+        print(f"   Guild: {interaction.guild.name} (ID: {interaction.guild.id})")
+        print(f"   User: {interaction.user.name} (ID: {interaction.user.id})")
+        print(f"   Querying database for ticket...")
         
         ticket = db.get_ticket_by_channel(interaction.channel.id)
         
+        print(f"   Ticket found in DB: {ticket is not None}")
+        if ticket:
+            print(f"   ✅ Ticket #: {ticket.get('ticket_number')}")
+            print(f"   ✅ Status: {ticket.get('status')}")
+        else:
+            print(f"   ❌ NO TICKET FOUND FOR THIS CHANNEL!")
+        
+        # Defer FIRST to avoid timeout
+        await interaction.response.defer(ephemeral=True)
+        print(f"   ✅ Interaction deferred")
+        
         if not ticket:
+            print(f"   Sending error message...")
             await interaction.followup.send("❌ Command ini hanya bisa digunakan di ticket channel.", ephemeral=True)
             return
         
         if ticket['status'] != 'open':
-            await interaction.followup.send("❌ Ticket ini sudah ditutup.", ephemeral=True)
+            await interaction.response.send_message("❌ Ticket ini sudah ditutup.", ephemeral=True)
             return
         
         items = db.get_ticket_items(ticket['id'])
         
         if not items:
-            await interaction.followup.send("❌ Tidak ada item di ticket ini.", ephemeral=True)
+            await interaction.response.send_message("❌ Tidak ada item di ticket ini.", ephemeral=True)
             return
         
         grand_total = sum(i['amount'] for i in items)
@@ -3329,6 +3351,9 @@ async def approve_ticket(interaction: discord.Interaction):
                 self.confirmed = False
                 await interaction_btn.response.defer()
                 self.stop()
+        
+        # Defer interaction dulu untuk avoid timeout
+        await interaction.response.defer(ephemeral=True)
         
         # Show validation checklist
         checklist_embed = discord.Embed(
@@ -4983,7 +5008,7 @@ async def daily_leaderboard(interaction: discord.Interaction):
         
         # Buat embed baru
         embed = discord.Embed(
-            title="Daily Leaderboard — Top Sultan Hari Ini",
+            title="Hourly Leaderboard — Top Sultan 1 Jam Terakhir",
             description="",
             color=0x00D9FF,  # Cyan modern
             timestamp=dt.now()
@@ -5015,14 +5040,14 @@ async def daily_leaderboard(interaction: discord.Interaction):
                 
                 leaderboard_lines.append(
                     f"{rank} **{name}**\n"
-                    f"{stat['deals_count']} deals • **{format_idr(stat['daily_spend'])}**"
+                    f"{stat['deals_count']} deals • **{format_idr(stat['hourly_spend'])}**"
                 )
             
             embed.description = "\n\n".join(leaderboard_lines)
         
         # Footer
         embed.set_footer(
-            text="Auto-update setiap 1 jam • Reset tiap midnight",
+            text="Auto-update setiap 1 jam • Rolling window 1 jam",
             icon_url=interaction.guild.icon.url if interaction.guild.icon else None
         )
         
@@ -5290,6 +5315,8 @@ async def reject_mm(interaction: discord.Interaction, reason: str = "Bukti tidak
 
 # --- Jalankan Bot ---
 if __name__ == '__main__':
+    keep_alive()
+
     @client.event
     async def on_ready():
         try:

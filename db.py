@@ -26,17 +26,6 @@ if USE_POSTGRES:
 
 
 class BotDatabase:
-        def get_user_count(self):
-            """Menghitung jumlah user di tabel user_stats"""
-            query = "SELECT COUNT(*) as count FROM user_stats"
-            result = self.execute(query, fetch='one')
-            return result['count'] if result else 0
-
-        def get_transaction_count(self):
-            """Menghitung jumlah transaksi di tabel transactions"""
-            query = "SELECT COUNT(*) as count FROM transactions"
-            result = self.execute(query, fetch='one')
-            return result['count'] if result else 0
     def __init__(self, db_path: str):
         self.db_path = db_path
         self.use_postgres = USE_POSTGRES
@@ -164,7 +153,8 @@ class BotDatabase:
                     unlocked_at TIMESTAMP DEFAULT NOW(),
                     UNIQUE(guild_id, user_id, achievement_type, achievement_value)
                 )
-            """)
+            """
+            )
             
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS tickets (
@@ -757,36 +747,47 @@ class BotDatabase:
         ]
     
     def get_daily_leaderboard(self, guild_id: int, limit: int = None) -> List[Dict[str, Any]]:
-        """Ambil leaderboard berdasarkan transaksi hari ini"""
-        from datetime import datetime
-        today = datetime.now().strftime('%Y-%m-%d')
+        """Ambil leaderboard rolling 1 jam terakhir (bukan harian lagi)"""
         conn = self.get_connection()
         cursor = conn.cursor()
-        
-        # Query transaksi hari ini, group by user
-        query = """
-            SELECT 
-                user_id,
-                SUM(amount) as daily_spend,
-                COUNT(*) as deals_count
-            FROM transactions
-            WHERE guild_id = ? AND DATE(timestamp) = ?
-            GROUP BY user_id
-            ORDER BY daily_spend DESC
-        """
-        
+
+        if self.use_postgres:
+            query = """
+                SELECT 
+                    user_id,
+                    SUM(amount) AS hourly_spend,
+                    COUNT(*) AS deals_count
+                FROM transactions
+                WHERE guild_id = %s AND timestamp >= NOW() - INTERVAL '1 hour'
+                GROUP BY user_id
+                ORDER BY hourly_spend DESC
+            """
+            params = (str(guild_id),)
+        else:
+            query = """
+                SELECT 
+                    user_id,
+                    SUM(amount) AS hourly_spend,
+                    COUNT(*) AS deals_count
+                FROM transactions
+                WHERE guild_id = ? AND timestamp >= datetime('now', '-1 hour')
+                GROUP BY user_id
+                ORDER BY hourly_spend DESC
+            """
+            params = (str(guild_id),)
+
         if limit:
             query += f" LIMIT {limit}"
-        
-        cursor.execute(query, (str(guild_id), today))
-        
+
+        cursor.execute(query, params)
+
         rows = cursor.fetchall()
         conn.close()
-        
+
         return [
             {
                 'user_id': row['user_id'],
-                'daily_spend': row['daily_spend'],
+                'hourly_spend': row['hourly_spend'],
                 'deals_count': row['deals_count']
             }
             for row in rows
@@ -1266,25 +1267,6 @@ class BotDatabase:
                     'channel_id': int(row[0]),
                     'message_id': int(row[1]),
                     'price_hash': row[2]
-                }
-            except (ValueError, TypeError):
-                return None
-        return None
-        conn = self.get_connection()
-        cursor = conn.cursor()
-        cursor.execute("""
-            SELECT stats_channel_id, stats_message_id
-            FROM user_stats
-            WHERE guild_id = ? AND user_id = ? AND stats_message_id IS NOT NULL AND stats_message_id != ''
-        """, (str(guild_id), str(user_id)))
-        row = cursor.fetchone()
-        conn.close()
-        
-        if row and row[0] and row[1] and str(row[0]) != '0' and str(row[1]) != '0':
-            try:
-                return {
-                    'channel_id': int(row[0]),
-                    'message_id': int(row[1])
                 }
             except (ValueError, TypeError):
                 return None
