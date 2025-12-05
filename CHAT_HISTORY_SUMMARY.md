@@ -1,6 +1,6 @@
 # Discord Bot - Riwayat Perubahan & Setup
 
-**Tanggal:** 5 Desember 2025 (Updated)
+**Tanggal:** 5 Desember 2025 (Updated - 14:00 WIB)
 **Bot Name:** ASBLOX  
 **Platform:** Render.com (Free Tier)  
 **Repository:** https://github.com/A-XZ01/AbuyyXZ777
@@ -9,6 +9,12 @@
 ---
 
 ## 🆕 UPDATE TERBARU (5 Desember 2025)
+
+### **UI/UX Improvements:**
+- ✅ **Middleman ticket embed** - minimized dari 8 fields ke 4 fields
+- ✅ **Professional design** - elegant, modern, clean layout
+- ✅ **Reduced clutter** - merge redundant fields (Buyer/Seller/Item)
+- ✅ **Added timestamp** - footer dengan tanggal formatted
 
 ### **Database Migration - Fresh Start:**
 - ✅ **Hapus database lama** yang corrupt dengan schema outdated
@@ -32,6 +38,7 @@
 - ✅ Hapus parameter `code` dari `/add-item`
 - ✅ Fix corrupted type hints di `db.py`
 - ✅ Add psycopg2 type ignore untuk Pylance
+- ✅ Simplify middleman embed - 37 lines reduced
 
 ---
 
@@ -317,65 +324,25 @@ GUILD_ID = 1445079009405833299
 - [x] Make reset_all owner-only instant
 - [x] Simplify `/add-item` command
 - [x] Fresh database deployment
+- [x] Minimize middleman ticket embed
 
 ---
 
-**Last Updated:** 5 Desember 2025, 13:45 WIB  
+**Last Updated:** 5 Desember 2025, 14:00 WIB  
 **Status:** ✅ Production Ready - Fresh Database  
 **Database:** SQLite (semua tabel lengkap, ready untuk data baru)
 
+**Recent Changes:**
+1. ✅ Middleman ticket embed - reduced dari 8 ke 4 fields
+2. ✅ Professional UI - elegant, modern, minimalist
+3. ✅ Timestamp added to embed footer
+4. ✅ Merged redundant fields (Buyer/Seller/Item)
+
 **Next Steps:**
-1. Test create ticket - pastikan tidak ada error
+1. Test middleman ticket creation - verify new embed design
 2. Test `/add-item` dengan parameter baru
 3. Monitor bot di production
 4. (Optional) Migrate ke PostgreSQL untuk data permanen
-- [x] Ubah weekly → daily stats
-- [x] Auto-update 2 jam → 1 jam
-- [x] Fix Railway deployment issues
-- [x] Migrate to Render.com
-- [x] Setup keep-alive system
-- [x] Fix `/allstats` double post
-- [x] Remove emoji from title/footer
-- [x] Keep ranking icons (top 1-3, 4-10)
-- [x] Simplify middleman embed
-- [x] Cleanup unused files
-- [x] Test all commands in production
-- [x] Add PostgreSQL support to db.py
-- [x] Push database file to GitHub
-- [x] Fix IndentationError for PostgreSQL compatibility
-
----
-
-**Last Updated:** 5 Desember 2025, 12:30 WIB  
-**Status:** ✅ Production Ready (SQLite + PostgreSQL Support)  
-**Database:** SQLite (synced from GitHub) - 28 transaksi, 3 users
-
----
-
-## 🔄 UPDATE TERBARU (5 Desember 2025)
-
-### **PostgreSQL Support Added:**
-- ✅ `db.py` sekarang support **PostgreSQL & SQLite**
-- ✅ Auto-detect via `DATABASE_URL` environment variable  
-- ✅ Database file (`bot_database.db`) di-push ke GitHub untuk persistence
-- ✅ Ready untuk migrasi ke PostgreSQL kapan saja (Neon/Supabase)
-
-### **Database Status:**
-- **Local (Development):** SQLite - `data/bot_database.db`
-- **Render (Production):** SQLite - synced dari GitHub setiap deploy
-- **Data Tersimpan:** 28 transaksi, 3 users, 2 tiket, 91 audit logs, 4 achievements
-
-### **Current Limitations:**
-⚠️ **SQLite di Render akan reset saat:**
-- Manual redeploy dari Render dashboard
-- Major rebuild (dependency changes)
-- **Solusi:** Data di-backup di GitHub, akan restored otomatis setelah deploy
-
-### **Recommended Next Step (Optional):**
-Migrasi ke **Neon PostgreSQL** untuk data 100% permanen:
-1. Signup: https://neon.tech (gratis 3GB)
-2. Create database → Copy connection string
-3. Set `DATABASE_URL` di Render environment variable
 4. Bot auto-switch ke PostgreSQL (no code change needed)
 5. Run migration script untuk import data dari SQLite
 
