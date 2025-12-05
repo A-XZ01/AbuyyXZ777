@@ -1,8 +1,13 @@
-# Check Bot Status on DigitalOcean
+# ============================================
+# Bot Status Checker
+# ============================================
+# Cek status bot di DigitalOcean
 # Usage: .\check-bot.ps1
+# ============================================
 
-Write-Host "Checking bot status..." -ForegroundColor Cyan
+Write-Host "🔍 Checking bot status on DigitalOcean..." -ForegroundColor Cyan
 Write-Host ""
 
-$cmd = "supervisorctl status discordbot; tail -20 /var/log/discordbot.out.log"
-ssh root@159.223.71.87 $cmd
+$sshCommand = "echo 'BOT STATUS:' && supervisorctl status discordbot && echo '' && echo 'LAST 20 LOG LINES:' && tail -20 /var/log/discordbot.out.log"
+
+ssh root@159.223.71.87 $sshCommand
