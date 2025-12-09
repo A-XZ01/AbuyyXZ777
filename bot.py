@@ -4137,6 +4137,16 @@ class MyClient(discord.Client):
                             f"*(Detected via {duplicate['algorithm']} | {duplicate['all_distances']})*"
                         )
                         await message.add_reaction("❌")
+                        return
+        except Exception as e:
+            print(f"❌ Error processing auto-proof: {e}")
+            import traceback
+            traceback.print_exc()
+            await message.channel.send(
+                f"{message.author.mention} ❌ Gagal memproses bukti transfer otomatis. Coba upload ulang screenshot."
+            )
+
+
 # --- Slash Command: /clear ---
 @client.tree.command(
     name="clear",
