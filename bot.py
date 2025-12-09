@@ -188,24 +188,12 @@ class UsernameModal(discord.ui.Modal, title="🎫 Create New Ticket"):
                 inline=False
             )
             
-            # Get all items from database
-            items = db.get_all_items(interaction.guild.id)
-            if not items:
-                db.init_default_items(interaction.guild.id)
-                items = db.get_all_items(interaction.guild.id)
-            
-            rate = db.get_robux_rate(interaction.guild.id)
-            
-            # Build item list
-            items_text = []
-            for item in items:
-                items_text.append(f"**{item['name']}:** {item['robux']} R$ • Rp{item['price_idr']:,}")
-            
-            welcome_embed.add_field(
-                name=f"💎 Item & Harga (Rate: Rp{rate}/Robux)",
-                value="\n".join(items_text),
-                inline=False
-            )
+            # Hapus daftar item statis dari embed utama
+            # welcome_embed.add_field(
+            #     name=f"💎 Item & Harga (Rate: Rp{rate}/Robux)",
+            #     value="\n".join(items_text),
+            #     inline=False
+            # )
             
             welcome_embed.set_footer(text=f"Ticket #{ticket_number:04d} • 4-Layer Fraud Detection Active")
             
@@ -276,7 +264,7 @@ class UsernameModal(discord.ui.Modal, title="🎫 Create New Ticket"):
                 f"✅ Ticket berhasil dibuat!\n\n"
                 f"🎫 **Ticket:** {channel.mention}\n"
                 f"📝 **Username:** `{username}`\n\n"
-                f"Silakan buka channel ticket Anda dan gunakan `/add` untuk order!",
+                f"Silakan buka channel ticket Anda dan pilih item dari menu!",
                 ephemeral=True
             )
             
@@ -663,7 +651,10 @@ class MiddlemanModal(discord.ui.Modal, title="🤝 Create Middleman Ticket"):
             )
             
             # Get admin mentions
+            guild_config = db.get_guild_config(interaction.guild.id)
+            admin_roles = guild_config.get('admin_roles', [])
             owner = interaction.guild.owner
+            
             admin_mentions = []
             for role_id in admin_roles:
                 role = interaction.guild.get_role(int(role_id))
@@ -1270,7 +1261,6 @@ async def detect_image_manipulation(image_url: str) -> dict:
                 scribble_mask = (s > 0.5) & (v > 0.5)
                 scribble_pixels = np.sum(scribble_mask)
                 scribble_ratio = scribble_pixels / total_pixels
-                
                 print(f"   🎨 Scribble detection: {scribble_pixels:,} pixels ({scribble_ratio*100:.2f}%)")
                 
                 # If >5% of image is VERY vivid color, flag as scribble
@@ -1817,7 +1807,7 @@ class MyClient(discord.Client):
                         pass  # Message sudah dihapus
                     
                     # Generate leaderboard embed terbaru
-                    embed = await self.generate_leaderboard_embed(guild)
+                    embed = await client.generate_leaderboard_embed(guild)
                     
                     # Post message baru
                     new_message = await channel.send(embed=embed)
@@ -1886,7 +1876,7 @@ class MyClient(discord.Client):
         
         # Footer
         embed.set_footer(
-            text="🔄 Auto-update setiap 1 jam • Rolling window 1 jam",
+            text="Auto-update setiap 1 jam • Rolling window 1 jam",
             icon_url=guild.icon.url if guild.icon else None
         )
         
@@ -2355,7 +2345,6 @@ class MyClient(discord.Client):
                 # Now check similarity (will compare with OTHER tickets, excluding current one)
                 print(f"\n🔍 Multi-algorithm similarity check...")
                 print(f"   Current ticket ID to EXCLUDE: {ticket['id']}")
-                print(f"   Guild ID: {message.guild.id}")
                 duplicate = await check_similar_images(
                     message.guild.id, 
                     proof_hash,
@@ -2444,7 +2433,7 @@ class MyClient(discord.Client):
             
             submit_embed.add_field(name="🎫 Ticket ID", value=f"`#{ticket['ticket_number']:04d}`", inline=True)
             submit_embed.add_field(name="👤 Username", value=f"`{ticket['game_username']}`", inline=True)
-            submit_embed.add_field(name="💳 Total", value=f"**{format_idr(grand_total)}**", inline=True)
+            submit_embed.add_field(name="💳 Total", value=f"**{format_idr(grand_total)}**\n(≈ ${grand_total / 15000:,.2f} USD)", inline=True)
             
             items_list = []
             for i in items:
@@ -2487,7 +2476,7 @@ class MyClient(discord.Client):
             
             submit_embed.set_footer(
                 text="⏳ Menunggu verifikasi admin | 4-Layer Fraud Detection", 
-                icon_url=message.guild.icon.url if message.guild.icon else None
+                icon_url=interaction.guild.icon.url if interaction.guild.icon else None
             )
             
             # Save ke database
@@ -2551,1345 +2540,1597 @@ class MyClient(discord.Client):
                 f"{message.author.mention} ❌ Gagal memproses bukti transfer otomatis. Coba upload ulang screenshot."
             )
 
-# Inisialisasi Klien Bot
-client = MyClient(intents=intents)
 
-
-# --- Slash Command: /reset_stats ---
+# --- Slash Command: /sync (OWNER ONLY) ---
 @client.tree.command(
-    name="reset_stats",
-    description="[OWNER] Reset Total Transaksi dan Total Spend untuk user atau semua user."
+    name="sync",
+    description="[OWNER] Force sync slash commands with Discord."
 )
-@app_commands.describe(
-    user='User yang ingin di-reset (default: diri sendiri)',
-    reset_all='Jika true, reset semua user'
-)
-@app_commands.default_permissions(administrator=True)
 @owner_only()
-async def reset_stats(interaction: discord.Interaction, user: Optional[discord.Member] = None, reset_all: Optional[bool] = False):
+async def sync_commands(interaction: discord.Interaction):
+    """Force sync all slash commands."""
     await interaction.response.defer(ephemeral=True)
+    try:
+        synced = await client.tree.sync(guild=interaction.guild)
+        await interaction.followup.send(f"✅ Berhasil sinkronisasi {len(synced)} command(s) ke server ini.", ephemeral=True)
+        print(f"✅ Force sync completed by {interaction.user.name}. Synced {len(synced)} commands.")
+    except Exception as e:
+        await interaction.followup.send(f"❌ Gagal sinkronisasi: {e}", ephemeral=True)
+        print(f"❌ Force sync failed: {e}")
 
-    if reset_all:
-        # HANYA OWNER yang boleh reset_all
-        if not is_owner(interaction):
-            await interaction.followup.send("❌ Hanya Owner yang dapat mereset semua statistik!", ephemeral=True)
-            return
+
+# --- Kelas Bot Discord ---
+intents = discord.Intents.default()
+intents.members = True
+intents.message_content = True
+
+# Whitelist server yang diizinkan
+# Whitelist server yang diizinkan
+ALLOWED_GUILDS = [
+    1445079009405833299,  # ASBLOX - Server utama
+]
+
+class MyClient(discord.Client):
+    def __init__(self, *, intents: discord.Intents):
+        super().__init__(intents=intents)
+        self.tree = app_commands.CommandTree(self)
+
+    async def setup_hook(self):
+        """Called when the bot is starting"""
+        # Hapus command lama yang tidak terpakai untuk menghindari duplikasi
+        self.tree.remove_command('approve-ticket')
         
-        # Owner: Langsung reset tanpa konfirmasi
-        # Backup current data dari database
-        all_stats = db.get_all_user_stats(interaction.guild.id)
-        backup_data = {
-            stat['user_id']: {
-                'deals_completed': stat['deals_completed'],
-                'total_idr_value': stat['total_idr_value']
-            }
-            for stat in all_stats
-        }
-        
-        ts = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')
-        backup_dir = os.path.join(DATA_DIR, 'backups')
-        os.makedirs(backup_dir, exist_ok=True)
-        backup_file = os.path.join(backup_dir, f'auto_backup_{interaction.guild.id}_{ts}.json')
-        
+        # Register persistent view untuk button
+        self.add_view(CreateTicketButton())
+        self.add_view(CreateMiddlemanButton())
+        # Start auto-backup task
+        self.auto_backup_task.start()
+        # Start auto-update leaderboard task
+        self.auto_update_leaderboard.start()
+    
+    async def on_ready(self):
+        print(f'✅ Bot berhasil Login sebagai {self.user} (ID: {self.user.id})')
+        print(f"📡 Bot aktif di {len(self.guilds)} server")
+        for guild in self.guilds:
+            print(f"   - {guild.name} (ID: {guild.id})")
+            # Auto-leave jika bukan server yang diizinkan
+            if guild.id not in ALLOWED_GUILDS:
+                print(f"⚠️ Server {guild.name} tidak ada di whitelist, keluar...")
+                await guild.leave()
+                print(f"✅ Bot keluar dari server {guild.name}")
+        print("⏳ Mencoba sinkronisasi Slash Commands...")
         try:
-            with open(backup_file, 'w', encoding='utf-8') as bf:
-                json.dump(backup_data, bf, ensure_ascii=False, indent=2)
+            # Sync to specific guilds first (faster)
+            for guild in self.guilds:
+                if guild.id in ALLOWED_GUILDS:
+                    synced_guild = await self.tree.sync(guild=guild)
+                    print(f"🎉 {len(synced_guild)} Commands synced to {guild.name}")
+            
+            # Then global sync as backup
+            synced = await self.tree.sync()
+            print(f"🎉 {len(synced)} Slash Commands synced globally!")
+            print("💡 Commands sekarang tersedia di semua server!")
         except Exception as e:
-            await interaction.followup.send(f"❌ Gagal membuat backup: {e}", ephemeral=True)
-            return
-
-        # Reset semua data
+            print(f"❌ Gagal sinkronisasi commands: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    @tasks.loop(hours=24)
+    async def auto_backup_task(self):
+        """Auto-backup setiap 24 jam"""
         try:
-            db.reset_all_stats(interaction.guild.id)
-            db.log_action(interaction.guild.id, interaction.user.id, "reset_all_stats", f"Backup: {backup_file}")
+            print("🔄 Menjalankan auto-backup...")
+            # Backup untuk setiap guild
+            backup_dir = os.path.join(DATA_DIR, 'backups')
+            os.makedirs(backup_dir, exist_ok=True)
+            
+            # Backup semua guilds
+            for guild in self.guilds:
+                all_stats = db.get_all_user_stats(guild.id)
+                if not all_stats:
+                    continue
+                    
+                backup_data = {
+                    stat['user_id']: {
+                        'deals_completed': stat['deals_completed'],
+                        'total_idr_value': stat['total_idr_value']
+                    }
+                    for stat in all_stats
+                }
+            
+                timestamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')
+                backup_file = os.path.join(backup_dir, f'auto_backup_{guild.id}_{timestamp}.json')
+                
+                with open(backup_file, 'w', encoding='utf-8') as f:
+                    json.dump(backup_data, f, indent=2, ensure_ascii=False)
+                
+                print(f"✅ Auto-backup selesai untuk {guild.name}: {backup_file}")
+            
+            # Hapus backup lama (simpan hanya 30 backup terakhir)
+            files = [os.path.join(backup_dir, f) for f in os.listdir(backup_dir) if f.startswith('auto_backup_')]
+            files.sort(key=os.path.getmtime, reverse=True)
+            for old_file in files[30:]:
+                try:
+                    os.remove(old_file)
+                    print(f"🗑️ Hapus backup lama: {old_file}")
+                except:
+                    pass
         except Exception as e:
-            await interaction.followup.send(f"❌ Gagal mereset data: {e}", ephemeral=True)
-            return
-        
-        await interaction.followup.send(
-            f"✅ **Semua statistik telah di-reset!**\n"
-            f"📦 Backup disimpan: `{os.path.basename(backup_file)}`",
-            ephemeral=False
-        )
-        return
-
-    # Reset single user (default: self)
-    target = user if user is not None else interaction.user
-    # Owner bisa reset siapa saja, user biasa hanya diri sendiri
-    if target.id != interaction.user.id and not is_owner(interaction):
-        await interaction.followup.send("❌ Anda hanya dapat mereset statistik diri sendiri.", ephemeral=True)
-        return
-
-    # Reset menggunakan database
-    db.reset_user_stats(interaction.guild.id, target.id)
+            print(f"❌ Error saat auto-backup: {e}")
     
-    # Log action
-    db.log_action(interaction.guild.id, interaction.user.id, "reset_user_stats", f"Target: {target.id}")
-
-    await interaction.followup.send(f"✅ Statistik untuk **{target.display_name}** telah di-reset.", ephemeral=False)
-
-
-@client.tree.command(
-    name="reset-tickets",
-    description="[ADMIN] Hapus tickets user tertentu."
-)
-@app_commands.describe(user='User yang ticketnya akan dihapus')
-@app_commands.default_permissions(administrator=True)
-async def reset_tickets(interaction: discord.Interaction, user: discord.Member):
-    """Hapus tickets untuk user tertentu"""
-    await interaction.response.defer(ephemeral=True)
+    @auto_backup_task.before_loop
+    async def before_auto_backup(self):
+        """Wait until bot is ready"""
+        await self.wait_until_ready()
     
-    try:
-        # Get user's tickets
-        conn = db.get_connection()
-        cursor = conn.cursor()
-        
-        # Delete ticket items first
-        cursor.execute("""
-            DELETE FROM ticket_items 
-            WHERE ticket_id IN (
-                SELECT id FROM tickets WHERE guild_id = ? AND user_id = ?
-            )
-        """, (str(interaction.guild.id), str(user.id)))
-        
-        # Delete tickets
-        cursor.execute("""
-            DELETE FROM tickets WHERE guild_id = ? AND user_id = ?
-        """, (str(interaction.guild.id), str(user.id)))
-        
-        deleted_count = cursor.rowcount
-        conn.commit()
-        conn.close()
-        
-        # Log action
-        db.log_action(interaction.guild.id, interaction.user.id, "reset_user_tickets", f"Deleted {deleted_count} tickets for user {user.id}")
-        
-        await interaction.followup.send(
-            f"✅ Berhasil menghapus **{deleted_count}** ticket(s) untuk {user.mention}!",
-            ephemeral=True
-        )
+    @tasks.loop(hours=1)
+    async def auto_update_leaderboard(self):
+        """Auto-update leaderboard di #lb-rich-daily setiap 1 jam"""
+        try:
+            for guild in self.guilds:
+                # Cek apakah ada message leaderboard yang tersimpan
+                lb_data = db.get_leaderboard_message(guild.id)
+                
+                if not lb_data:
+                    # Belum ada message, skip
+                    continue
+                
+                try:
+                    # Ambil channel
+                    channel = guild.get_channel(lb_data['channel_id'])
+                    if not channel:
+                        continue
+                    
+                    # Hapus message lama
+                    try:
+                        old_message = await channel.fetch_message(lb_data['message_id'])
+                        await old_message.delete()
+                    except discord.NotFound:
+                        pass  # Message sudah dihapus
+                    
+                    # Generate leaderboard embed terbaru
+                    embed = await client.generate_leaderboard_embed(guild)
+                    
+                    # Post message baru
+                    new_message = await channel.send(embed=embed)
+                    
+                    # Update message ID di database
+                    db.set_leaderboard_message(guild.id, channel.id, new_message.id)
+                    
+                    print(f"✅ Leaderboard auto-updated untuk {guild.name}")
+                    
+                except Exception as e:
+                    print(f"❌ Error update leaderboard {guild.name}: {e}")
+                    
+        except Exception as e:
+            print(f"❌ Error auto-update leaderboard: {e}")
     
-    except Exception as e:
-        await interaction.followup.send(f"❌ Error: {e}", ephemeral=True)
-
-
-@client.tree.command(
-    name="reset-all-tickets",
-    description="[OWNER] Hapus SEMUA tickets dari semua user di server ini."
-)
-@app_commands.default_permissions(administrator=True)
-@owner_only()
-async def reset_all_tickets(interaction: discord.Interaction):
-    """Hapus semua tickets di server dengan konfirmasi"""
+    @auto_update_leaderboard.before_loop
+    async def before_auto_update_leaderboard(self):
+        """Wait until bot is ready"""
+        await self.wait_until_ready()
     
-    # Hitung total tickets
-    conn = db.get_connection()
-    cursor = conn.cursor()
-    cursor.execute("""
-        SELECT COUNT(*) FROM tickets WHERE guild_id = ?
-    """, (str(interaction.guild.id),))
-    total_tickets = cursor.fetchone()[0]
-    conn.close()
-    
-    if total_tickets == 0:
-        await interaction.response.send_message("ℹ️ Tidak ada ticket yang perlu dihapus.", ephemeral=True)
-        return
-    
-    # Buat konfirmasi button
-    class ConfirmResetAllView(discord.ui.View):
-        def __init__(self):
-            super().__init__(timeout=30)
-            self.value = None
-        
-        @discord.ui.button(label="✅ Ya, Hapus Semua", style=discord.ButtonStyle.danger)
-        async def confirm(self, interaction_btn: discord.Interaction, button: discord.ui.Button):
-            await interaction_btn.response.defer()
-            self.value = True
-            self.stop()
-        
-        @discord.ui.button(label="❌ Batal", style=discord.ButtonStyle.secondary)
-        async def cancel(self, interaction_btn: discord.Interaction, button: discord.ui.Button):
-            await interaction_btn.response.defer()
-            self.value = False
-            self.stop()
-    
-    view = ConfirmResetAllView()
-    await interaction.response.send_message(
-        f"⚠️ **PERINGATAN**\n"
-        f"Anda akan menghapus **{total_tickets}** ticket(s) dari SEMUA user di server ini!\n\n"
-        f"Apakah Anda yakin?",
-        view=view,
-        ephemeral=True
-    )
-    
-    await view.wait()
-    
-    if view.value is None:
-        await interaction.followup.send("⏱️ Waktu konfirmasi habis. Reset dibatalkan.", ephemeral=True)
-        return
-    
-    if not view.value:
-        await interaction.followup.send("❌ Reset tickets dibatalkan.", ephemeral=True)
-        return
-    
-    # Proses penghapusan
-    try:
-        conn = db.get_connection()
-        cursor = conn.cursor()
-        
-        # Delete ticket items first
-        cursor.execute("""
-            DELETE FROM ticket_items 
-            WHERE ticket_id IN (
-                SELECT id FROM tickets WHERE guild_id = ?
-            )
-        """, (str(interaction.guild.id),))
-        
-        # Delete all tickets
-        cursor.execute("""
-            DELETE FROM tickets WHERE guild_id = ?
-        """, (str(interaction.guild.id),))
-        
-        deleted_count = cursor.rowcount
-        conn.commit()
-        conn.close()
-        
-        # Log action
-        db.log_action(interaction.guild.id, interaction.user.id, "reset_all_tickets", f"Deleted {deleted_count} tickets from all users")
-        
-        await interaction.followup.send(
-            f"✅ **Berhasil menghapus {deleted_count} ticket(s) dari semua user!**\n"
-            f"Database telah direset.",
-            ephemeral=True
-        )
-    
-    except Exception as e:
-        await interaction.followup.send(f"❌ Error: {e}", ephemeral=True)
-
-
-@client.tree.command(
-    name="rollback_backup",
-    description="[OWNER] Restore data dari backup terakhir atau dari file backup yang dipilih."
-)
-@app_commands.describe(
-    filename='Nama file backup di folder data/backups (opsional). Jika kosong, gunakan backup terbaru.'
-)
-@app_commands.default_permissions(administrator=True)
-@owner_only()
-async def rollback_backup(interaction: discord.Interaction, filename: Optional[str] = None):
-    await interaction.response.defer(ephemeral=True)
-
-    backup_dir = os.path.join(DATA_DIR, 'backups')
-    if not os.path.exists(backup_dir):
-        await interaction.response.send_message("❌ Tidak ada folder backup.", ephemeral=True)
-        return
-
-    # Pilih file
-    if filename:
-        backup_file = os.path.join(backup_dir, filename)
-        if not os.path.exists(backup_file):
-            await interaction.response.send_message(f"❌ File backup `{filename}` tidak ditemukan.", ephemeral=True)
-            return
-    else:
-        # Pilih file terakhir berdasarkan mtime
-        files = [os.path.join(backup_dir, f) for f in os.listdir(backup_dir) if f.lower().endswith('.json')]
-        if not files:
-            await interaction.response.send_message("❌ Tidak ditemukan file backup.", ephemeral=True)
-            return
-        backup_file = max(files, key=os.path.getmtime)
-
-    # Buat backup dari current data sebelum restore (safety)
-    try:
-        current_stats = db.get_all_user_stats(interaction.guild.id)
-        current_data = {
-            stat['user_id']: {
-                'deals_completed': stat['deals_completed'],
-                'total_idr_value': stat['total_idr_value']
-            }
-            for stat in current_stats
-        }
-        ts = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')
-        prebackup_file = os.path.join(backup_dir, f'user_data_pre_restore_{ts}.json')
-        with open(prebackup_file, 'w', encoding='utf-8') as pb:
-            json.dump(current_data, pb, ensure_ascii=False, indent=2)
-    except Exception:
-        prebackup_file = None
-
-    # Load selected backup dan restore ke database
-    try:
-        with open(backup_file, 'r', encoding='utf-8') as bf:
-            data = json.load(bf)
-        
-        # Reset semua stats dulu
-        db.reset_all_stats(interaction.guild.id)
-        
-        # Import dari backup
-        conn = db.get_connection()
-        cursor = conn.cursor()
-        for user_id, stats in data.items():
-            deals = stats.get('deals_completed', 0)
-            idr_value = stats.get('total_idr_value', 0)
-            cursor.execute("""
-                INSERT OR REPLACE INTO user_stats (guild_id, user_id, deals_completed, total_idr_value, updated_at)
-                VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
-            """, (str(interaction.guild.id), user_id, deals, idr_value))
-        conn.commit()
-        conn.close()
-        
-        # Log action
-        db.log_action(interaction.guild.id, interaction.user.id, "rollback_backup", f"File: {os.path.basename(backup_file)}")
-        
-    except Exception as e:
-        await interaction.response.send_message(f"❌ Gagal melakukan restore: {e}", ephemeral=True)
-        return
-
-    resp = f"✅ Restore berhasil dari `{os.path.basename(backup_file)}`."
-    if prebackup_file:
-        resp += f" Backup sebelum restore disimpan: `{os.path.basename(prebackup_file)}`."
-    await interaction.response.send_message(resp, ephemeral=False)
-
-
-# --- Slash Command: /history ---
-@client.tree.command(
-    name="list_backups",
-    description="[OWNER] Tampilkan daftar file backup yang tersedia."
-)
-@app_commands.describe(
-    limit='Jumlah item yang ditampilkan (default 10, maksimal 50)'
-)
-@app_commands.default_permissions(administrator=True)
-@owner_only()
-async def list_backups(interaction: discord.Interaction, limit: Optional[int] = 10):
-    await interaction.response.defer(ephemeral=True)
-
-    backup_dir = os.path.join(DATA_DIR, 'backups')
-    if not os.path.exists(backup_dir):
-        await interaction.response.send_message("❌ Tidak ada folder backup.", ephemeral=True)
-        return
-
-    files = [f for f in os.listdir(backup_dir) if f.lower().endswith('.json')]
-    if not files:
-        await interaction.response.send_message("❌ Tidak ditemukan file backup.", ephemeral=True)
-        return
-
-    # sort by mtime desc
-    files_full = [os.path.join(backup_dir, f) for f in files]
-    files_full.sort(key=os.path.getmtime, reverse=True)
-
-    # Pagination UI
-    class BackupListView(discord.ui.View):
-        def __init__(self, files: list, page: int = 0, items_per_page: int = 5):
-            super().__init__(timeout=180)
-            self.files = files
-            self.page = page
-            self.items_per_page = items_per_page
-            self.max_pages = (len(files) - 1) // items_per_page + 1
-            self.update_buttons()
-        
-        def update_buttons(self):
-            self.previous_button.disabled = (self.page == 0)
-            self.next_button.disabled = (self.page >= self.max_pages - 1)
-        
-        def get_embed(self):
-            start = self.page * self.items_per_page
-            end = start + self.items_per_page
-            page_files = self.files[start:end]
-            
-            embed = discord.Embed(
-                title=f"📦 Daftar Backup (Page {self.page + 1}/{self.max_pages})",
-                color=discord.Color.blue()
-            )
-            
-            for idx, path in enumerate(page_files, start=start + 1):
-                fname = os.path.basename(path)
-                mtime = datetime.fromtimestamp(os.path.getmtime(path)).strftime('%Y-%m-%d %H:%M:%S')
-                size = os.path.getsize(path)
-                embed.add_field(
-                    name=f"{idx}. {fname}",
-                    value=f"📅 {mtime} | 💾 {size} bytes",
-                    inline=False
-                )
-            
-            embed.set_footer(text=f"Total: {len(self.files)} backup files")
-            return embed
-        
-        @discord.ui.button(label="◀ Previous", style=discord.ButtonStyle.secondary)
-        async def previous_button(self, interaction_btn: discord.Interaction, button: discord.ui.Button):
-            if self.page > 0:
-                self.page -= 1
-                self.update_buttons()
-                await interaction_btn.response.edit_message(embed=self.get_embed(), view=self)
-        
-        @discord.ui.button(label="Next ▶", style=discord.ButtonStyle.secondary)
-        async def next_button(self, interaction_btn: discord.Interaction, button: discord.ui.Button):
-            if self.page < self.max_pages - 1:
-                self.page += 1
-                self.update_buttons()
-                await interaction_btn.response.edit_message(embed=self.get_embed(), view=self)
-    
-    view = BackupListView(files_full)
-    await interaction.response.send_message(embed=view.get_embed(), view=view, ephemeral=True)
-
-
-# --- Slash Command: /stats ---
-@client.tree.command(
-    name="stats", 
-    description="Menampilkan statistik Total Transaksi dan Total Spend user." 
-)
-@app_commands.describe(
-    user='Pilih pengguna untuk dilihat statistiknya (default: diri sendiri)'
-)
-async def stats_command(interaction: discord.Interaction, user: Optional[discord.Member]):
-    # Check cooldown untuk #cmd-bot
-    is_cooldown, remaining = check_cmd_bot_cooldown(interaction)
-    if is_cooldown:
-        await interaction.response.send_message(
-            f"⏰ **Cooldown Active**\n\nAnda bisa menggunakan command ini lagi dalam **{remaining} detik** di channel #cmd-bot.\n\n"
-            f"*Cooldown ini untuk mencegah spam. Admin/Owner tidak terkena cooldown.*",
-            ephemeral=True
-        )
-        return
-    
-    target_user = user if user is not None else interaction.user
-    
-    # Ambil stats dari database
-    stats = db.get_user_stats(interaction.guild.id, target_user.id)
-    if not stats:
-        # User belum ada data, buat entry baru dengan nilai 0
-        db.update_user_stats(interaction.guild.id, target_user.id, 0)
-        stats = {'deals_completed': 0, 'total_idr_value': 0}
-
-    deals = stats.get('deals_completed', 0)
-    idr_value = stats.get('total_idr_value', 0)
-    
-    # Hitung USD (kurs ~15.000 IDR/USD)
-    usd_value = idr_value / 15000
-
-    # Buat embed dengan design elegant
-    try:
-        avatar_url = target_user.display_avatar.url
-    except Exception:
-        avatar_url = None
-
-    # Elegant cyan gradient
-    embed = discord.Embed(
-        title=f"👤 {target_user.display_name}",
-        description="Statistik Transaksi",
-        color=0x00CED1  # Dark turquoise
-    )
-    if avatar_url:
-        embed.set_thumbnail(url=avatar_url)
-
-    # Field dengan design minimalis - 1 kolom vertikal
-    embed.add_field(
-        name="📊 Total Transaksi", 
-        value=f"**{deals}** deals", 
-        inline=False
-    )
-    embed.add_field(
-        name="💰 Total Belanja", 
-        value=f"**{format_idr(idr_value)}**\n(≈ ${usd_value:,.2f} USD)", 
-        inline=False
-    )
-
-    embed.set_footer(
-        text="💡 Tip: Jangan lupa vouch setelah transaksi!", 
-        icon_url=interaction.guild.icon.url if interaction.guild.icon else None
-    )
-
-    await interaction.response.send_message(embed=embed, ephemeral=False)
-# --- Slash Command: /allstats (All-Time Leaderboard) ---
-@client.tree.command(
-    name="allstats",
-    description="[ADMIN] 📊 All-Time Leaderboard - Statistik sepanjang waktu"
-)
-@app_commands.default_permissions(administrator=True)
-@admin_or_owner()
-async def allstats_command(interaction: discord.Interaction):
-    """Show all-time leaderboard dan auto-post ke #lb-rich-weekly"""
-    await interaction.response.defer()
-    
-    try:
-        # Query langsung dari transactions untuk all-time stats
-        conn = db.get_connection()
-        cursor = conn.cursor()
-        
-        cursor.execute("""
-            SELECT 
-                user_id,
-                SUM(amount) as total_spend,
-                COUNT(*) as deals_count
-            FROM transactions
-            WHERE guild_id = ?
-            GROUP BY user_id
-            ORDER BY total_spend DESC
-            LIMIT 10
-        """, (str(interaction.guild.id),))
-        
-        all_stats = cursor.fetchall()
-        conn.close()
-        
-        if not all_stats:
-            await interaction.followup.send(
-                "❌ **Belum ada data transaksi di server ini.**",
-                ephemeral=True
-            )
-            return
-        
-        # Build leaderboard data
+    async def generate_leaderboard_embed(self, guild: discord.Guild) -> discord.Embed:
+        """Generate embed untuk auto-update leaderboard harian"""
         from datetime import datetime as dt
-        leaderboard_lines = []
         
-        # Icon ranking: Top 1-3 special, Top 4-10 diamond
-        ranking_emoji = {1: "👑", 2: "⭐", 3: "🔥"}
-        
-        for idx, stat in enumerate(all_stats, 1):
-            try:
-                member = await interaction.guild.fetch_member(int(stat['user_id']))
-                name = member.display_name
-            except:
-                name = f"Unknown User"
-            
-            # Top 1-3 special, top 4-10 diamond
-            if idx in ranking_emoji:
-                rank = ranking_emoji[idx]
-            else:
-                rank = "💎"  # Diamond untuk rank 4-10
-            
-            leaderboard_lines.append(
-                f"{rank} **{name}**\n"
-                f"{stat['deals_count']} deals • **{format_idr(stat['total_spend'])}**"
-            )
+        # Ambil top 10 daily stats
+        daily_stats = db.get_daily_leaderboard(guild.id, limit=10)
         
         # Buat embed modern
         embed = discord.Embed(
-            title="All-Time Leaderboard — Top Sultan",
-            description="\n\n".join(leaderboard_lines),
-            color=0xFFD700,  # Gold
+            title="Hourly Leaderboard — Top Sultan 1 Jam Terakhir",
+            description="",
+            color=0x00D9FF,  # Cyan modern
             timestamp=dt.now()
         )
         
         # Set thumbnail
-        if interaction.guild.icon:
-            embed.set_thumbnail(url=interaction.guild.icon.url)
+        if guild.icon:
+            embed.set_thumbnail(url=guild.icon.url)
+        
+        # Build leaderboard
+        if not daily_stats:
+            embed.description = "**Belum ada transaksi hari ini.**\n\nJadi yang pertama!"
+        else:
+            leaderboard_lines = []
+            ranking_emoji = {1: "👑", 2: "⭐", 3: "🔥"}
+            
+            for idx, stat in enumerate(daily_stats, 1):
+                try:
+                    member = await guild.fetch_member(int(stat['user_id']))
+                    name = member.display_name
+                except:
+                    name = f"Unknown User"
+                
+                # Top 1-3 special, top 4-10 diamond
+                if idx in ranking_emoji:
+                    rank = ranking_emoji[idx]
+                else:
+                    rank = "💎"  # Diamond untuk rank 4-10
+                
+                leaderboard_lines.append(
+                    f"{rank} **{name}**\n"
+                    f"{stat['deals_count']} deals • **{format_idr(stat['hourly_spend'])}**"
+                )
+            
+            embed.description = "\n\n".join(leaderboard_lines)
         
         # Footer
         embed.set_footer(
-            text=f"Total {len(all_stats)} Sultan • All-Time Stats",
-            icon_url=interaction.guild.icon.url if interaction.guild.icon else None
+            text="Auto-update setiap 1 jam • Rolling window 1 jam",
+            icon_url=guild.icon.url if guild.icon else None
         )
         
-        # HANYA post ke #lb-rich-weekly (tidak kirim ke user)
-        lb_weekly_channel = discord.utils.get(interaction.guild.text_channels, name="lb-rich-weekly")
-        
-        if lb_weekly_channel:
-            try:
-                await lb_weekly_channel.send(embed=embed)
-                await interaction.followup.send(
-                    f"✅ Leaderboard berhasil di-post ke {lb_weekly_channel.mention}",
-                    ephemeral=True
+        return embed
+    
+    async def on_guild_join(self, guild: discord.Guild):
+        """Event ketika bot di-invite ke server baru"""
+        if guild.id not in ALLOWED_GUILDS:
+            print(f"⚠️ Bot di-invite ke server tidak diizinkan: {guild.name} (ID: {guild.id})")
+            print(f"✅ Bot otomatis keluar dari {guild.name}")
+            await guild.leave()
+    
+    async def on_member_join(self, member: discord.Member):
+        """Event ketika ada member baru join server"""
+        try:
+            # Cari role "Guest"
+            guest_role = discord.utils.get(member.guild.roles, name="Guest")
+            
+            if guest_role:
+                await member.add_roles(guest_role)
+                print(f"✅ Auto-role 'Guest' diberikan ke {member.name}")
+            else:
+                print(f"⚠️ Role 'Guest' tidak ditemukan di server {member.guild.name}")
+            
+            # Send welcome message ke #welcome dengan design estetik
+            welcome_channel = discord.utils.get(member.guild.text_channels, name="welcome")
+            if welcome_channel:
+                # Cari channel #open-ticket untuk mention
+                open_ticket_channel = discord.utils.get(member.guild.text_channels, name="open-ticket")
+                # Format channel mention dengan benar
+                if open_ticket_channel:
+                    channel_mention = open_ticket_channel.mention
+                else:
+                    # Jika channel tidak ada, gunakan text biasa tanpa #
+                    channel_mention = "channel **open-ticket**"
+                
+                # Embed estetik dengan gradient color
+                welcome_embed = discord.Embed(
+                    description=f"## 🌟 Welcome to **{member.guild.name}**! 🌟\n\n"
+                                f"Halo {member.mention}! Kami senang kamu bergabung! ✨",
+                    color=0x00D9FF,  # Cyan estetik
+                    timestamp=datetime.now()
                 )
-                print(f"✅ All-time leaderboard posted to #lb-rich-weekly")
-            except Exception as e:
-                await interaction.followup.send(f"❌ Error: {e}", ephemeral=True)
-                print(f"⚠️ Failed to post to #lb-rich-weekly: {e}")
-        else:
-            await interaction.followup.send(
-                "❌ Channel #lb-rich-weekly tidak ditemukan!",
-                ephemeral=True
-            )
-            print(f"⚠️ Channel #lb-rich-weekly not found")
-    
-    except Exception as e:
-        print(f"❌ Error in /allstats: {e}")
-        import traceback
-        traceback.print_exc()
-        await interaction.followup.send(
-            f"❌ **Error:**\n```{str(e)[:200]}```",
-            ephemeral=True
-        )
-
-
-# --- Slash Command: /add ---
-@client.tree.command(
-    name="add",
-    description="Tambahkan item ke ticket Anda (gunakan di ticket channel)."
-)
-@app_commands.describe(
-    item='Pilih item yang ingin dibeli'
-)
-@app_commands.default_permissions(administrator=True)
-async def add_item(interaction: discord.Interaction, item: str):
-    await interaction.response.defer()
-    
-    ticket = db.get_ticket_by_channel(interaction.channel.id)
-    
-    if not ticket:
-        await interaction.followup.send("❌ Command ini hanya bisa digunakan di ticket channel.", ephemeral=True)
-        return
-    
-    if ticket['status'] != 'open':
-        await interaction.followup.send("❌ Ticket ini sudah ditutup.", ephemeral=True)
-        return
-    
-    if int(ticket['user_id']) != interaction.user.id:
-        if not interaction.user.guild_permissions.administrator:
-            await interaction.followup.send("❌ Hanya owner ticket yang bisa menambahkan item.", ephemeral=True)
-            return
-    
-    # Get item details from database
-    item_data = db.get_item_price(interaction.guild.id, item)
-    
-    if not item_data:
-        await interaction.followup.send("❌ Item tidak ditemukan.", ephemeral=True)
-        return
-    
-    item_name = item_data['name']
-    unit_price = item_data['price_idr']
-    robux = item_data['robux']
-    
-    db.add_item_to_ticket(
-        ticket_id=ticket['id'],
-        item_name=item_name,
-        amount=unit_price
-    )
-    
-    confirm_embed = discord.Embed(
-        title="✨ Item Berhasil Ditambahkan",
-        description="Item telah ditambahkan ke dalam order Anda.",
-        color=0x9B59B6,  # Elegant purple
-        timestamp=datetime.now()
-    )
-    
-    confirm_embed.add_field(name="🛍️ Item", value=f"`{item_name}`", inline=True)
-    confirm_embed.add_field(name="💎 Robux", value=f"`{robux} R$`", inline=True)
-    confirm_embed.add_field(name="💳 Harga", value=format_idr(unit_price), inline=True)
-    
-    items = db.get_ticket_items(ticket['id'])
-    grand_total = sum(i['amount'] for i in items)
-    
-    items_list = []
-    for i in items:
-        items_list.append(f"`{i['item_name']}` — {format_idr(i['amount'])}")
-    
-    confirm_embed.add_field(
-        name="📦 Ringkasan Order",
-        value="\n".join(items_list),
-        inline=False
-    )
-    
-    confirm_embed.add_field(
-        name="💰 Total Pembayaran",
-        value=f"**{format_idr(grand_total)}**",
-        inline=False
-    )
-    
-    confirm_embed.set_footer(text="💡 Tip: Upload screenshot bukti transfer langsung ke channel ini", icon_url=interaction.guild.icon.url if interaction.guild.icon else None)
-    
-    await interaction.followup.send(embed=confirm_embed)
-
-# Dynamic autocomplete for /add command
-@add_item.autocomplete('item')
-async def add_item_autocomplete(interaction: discord.Interaction, current: str):
-    """Autocomplete untuk item choices berdasarkan database"""
-    items = db.get_all_items(interaction.guild.id)
-    
-    # Filter berdasarkan input user
-    if current:
-        items = [i for i in items if current.lower() in i['name'].lower()]
-    
-    # Return max 25 choices (Discord limit)
-    return [
-        app_commands.Choice(
-            name=f"{item['name']} ({item['robux']} R$ • {format_idr(item['price_idr'])})",
-            value=item['code']
-        )
-        for item in items[:25]
-    ]
-
-
-
-
-
-# --- Slash Command: /done ---
-@client.tree.command(
-    name="done",
-    description="[ADMIN] Tandai transaksi selesai dan tutup ticket."
-)
-@app_commands.default_permissions(administrator=True)
-async def done(interaction: discord.Interaction):
-    try:
-        # Debug logging dengan timestamp
-        from datetime import datetime
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        print(f"\n{'='*80}")
-        print(f"[{timestamp}] ✅ [DONE] COMMAND STARTED")
-        print(f"{'='*80}")
-        print(f"   Channel: {interaction.channel.name} (ID: {interaction.channel.id})")
-        print(f"   Guild: {interaction.guild.name} (ID: {interaction.guild.id})")
-        print(f"   User: {interaction.user.name} (ID: {interaction.user.id})")
-        print(f"   Querying database for ticket...")
-        
-        ticket = db.get_ticket_by_channel(interaction.channel.id)
-        
-        print(f"   Ticket found in DB: {ticket is not None}")
-        if ticket:
-            print(f"   ✅ Ticket #: {ticket.get('ticket_number')}")
-            print(f"   ✅ Status: {ticket.get('status')}")
-        else:
-            print(f"   ❌ NO TICKET FOUND FOR THIS CHANNEL!")
-        
-        # Defer FIRST to avoid timeout
-        await interaction.response.defer(ephemeral=True)
-        print(f"   ✅ Interaction deferred")
-        
-        if not ticket:
-            print(f"   Sending error message...")
-            await interaction.followup.send("❌ Command ini hanya bisa digunakan di ticket channel.", ephemeral=True)
-            return
-        
-        if ticket['status'] != 'open':
-            await interaction.followup.send("❌ Ticket ini sudah ditutup.", ephemeral=True)
-            return
-        
-        items = db.get_ticket_items(ticket['id'])
-        
-        if not items:
-            await interaction.followup.send("❌ Tidak ada item di ticket ini.", ephemeral=True)
-            return
-        
-        grand_total = sum(i['amount'] for i in items)
-        
-        # ===== CHECKLIST VALIDASI ADMIN =====
-        class ValidationChecklist(discord.ui.View):
-            def __init__(self):
-                super().__init__(timeout=120)
-                self.checks = {
-                    'account': False,
-                    'timestamp': False,
-                    'amount': False,
-                    'screenshot': False
-                }
-                self.confirmed = False
-            
-            def update_all_buttons(self):
-                """Helper to update all button states"""
-                for item in self.children:
-                    if isinstance(item, discord.ui.Button):
-                        if item.custom_id == "check_account":
-                            item.label = "☑ Nomor Rekening Cocok" if self.checks['account'] else "☐ Nomor Rekening Cocok"
-                            item.style = discord.ButtonStyle.success if self.checks['account'] else discord.ButtonStyle.secondary
-                        elif item.custom_id == "check_time":
-                            item.label = "☑ Timestamp Transfer Wajar" if self.checks['timestamp'] else "☐ Timestamp Transfer Wajar"
-                            item.style = discord.ButtonStyle.success if self.checks['timestamp'] else discord.ButtonStyle.secondary
-                        elif item.custom_id == "check_amount":
-                            item.label = "☑ Nominal Sesuai" if self.checks['amount'] else "☐ Nominal Sesuai"
-                            item.style = discord.ButtonStyle.success if self.checks['amount'] else discord.ButtonStyle.secondary
-                        elif item.custom_id == "check_ss":
-                            item.label = "☑ Screenshot Asli (Tidak Edit)" if self.checks['screenshot'] else "☐ Screenshot Asli (Tidak Edit)"
-                            item.style = discord.ButtonStyle.success if self.checks['screenshot'] else discord.ButtonStyle.secondary
-            
-            @discord.ui.button(label="☐ Nomor Rekening Cocok", style=discord.ButtonStyle.secondary, custom_id="check_account")
-            async def check_account(self, interaction_btn: discord.Interaction, button: discord.ui.Button):
-                self.checks['account'] = not self.checks['account']
-                button.label = "☑ Nomor Rekening Cocok" if self.checks['account'] else "☐ Nomor Rekening Cocok"
-                button.style = discord.ButtonStyle.success if self.checks['account'] else discord.ButtonStyle.secondary
-                await interaction_btn.response.edit_message(view=self)
-            
-            @discord.ui.button(label="☐ Timestamp Transfer Wajar", style=discord.ButtonStyle.secondary, custom_id="check_time")
-            async def check_timestamp(self, interaction_btn: discord.Interaction, button: discord.ui.Button):
-                self.checks['timestamp'] = not self.checks['timestamp']
-                button.label = "☑ Timestamp Transfer Wajar" if self.checks['timestamp'] else "☐ Timestamp Transfer Wajar"
-                button.style = discord.ButtonStyle.success if self.checks['timestamp'] else discord.ButtonStyle.secondary
-                await interaction_btn.response.edit_message(view=self)
-            
-            @discord.ui.button(label="☐ Nominal Sesuai", style=discord.ButtonStyle.secondary, custom_id="check_amount")
-            async def check_amount(self, interaction_btn: discord.Interaction, button: discord.ui.Button):
-                self.checks['amount'] = not self.checks['amount']
-                button.label = "☑ Nominal Sesuai" if self.checks['amount'] else "☐ Nominal Sesuai"
-                button.style = discord.ButtonStyle.success if self.checks['amount'] else discord.ButtonStyle.secondary
-                await interaction_btn.response.edit_message(view=self)
-            
-            @discord.ui.button(label="☐ Screenshot Asli (Tidak Edit)", style=discord.ButtonStyle.secondary, custom_id="check_ss")
-            async def check_screenshot(self, interaction_btn: discord.Interaction, button: discord.ui.Button):
-                self.checks['screenshot'] = not self.checks['screenshot']
-                button.label = "☑ Screenshot Asli (Tidak Edit)" if self.checks['screenshot'] else "☐ Screenshot Asli (Tidak Edit)"
-                button.style = discord.ButtonStyle.success if self.checks['screenshot'] else discord.ButtonStyle.secondary
-                await interaction_btn.response.edit_message(view=self)
-            
-            @discord.ui.button(label="⚡ CEK SEMUA", style=discord.ButtonStyle.primary, custom_id="check_all", row=1)
-            async def check_all(self, interaction_btn: discord.Interaction, button: discord.ui.Button):
-                # Toggle: if all checked, uncheck all. Otherwise, check all
-                all_checked = all(self.checks.values())
-                new_state = not all_checked
                 
-                for key in self.checks:
-                    self.checks[key] = new_state
+                # Set thumbnail (avatar member) ukuran kecil di pojok
+                welcome_embed.set_thumbnail(url=member.display_avatar.url)
                 
-                self.update_all_buttons()
-                await interaction_btn.response.edit_message(view=self)
-            
-            @discord.ui.button(label="✅ APPROVE SEKARANG", style=discord.ButtonStyle.danger, custom_id="confirm_approve", row=1)
-            async def confirm_approve(self, interaction_btn: discord.Interaction, button: discord.ui.Button):
-                # Check if all validations are checked
-                if not all(self.checks.values()):
-                    unchecked = [k for k, v in self.checks.items() if not v]
-                    await interaction_btn.response.send_message(
-                        f"⚠️ **Checklist belum lengkap!**\n\n"
-                        f"Belum divalidasi: {', '.join(unchecked)}\n\n"
-                        f"Pastikan semua checklist sudah ✅ sebelum approve.",
-                        ephemeral=True
+                # Author dengan server icon
+                if member.guild.icon:
+                    welcome_embed.set_author(
+                        name=f"{member.guild.name}",
+                        icon_url=member.guild.icon.url
                     )
+                
+                # Field dengan emoji dan spacing bagus
+                welcome_embed.add_field(
+                    name="🎯 Mulai Petualangan Kamu",
+                    value=f"📌 Buka {channel_mention}\n📋 Buat ticket pembelian\n🎁 Nikmati layanan terbaik!",
+                    inline=False
+                )
+                
+                welcome_embed.add_field(
+                    name="👥 Komunitas",
+                    value=f"```\nKamu adalah member ke-{member.guild.member_count}\n```",
+                    inline=True
+                )
+                
+                welcome_embed.add_field(
+                    name="🎊 Status",
+                    value=f"```\nRole: Guest\n```",
+                    inline=True
+                )
+                
+                # Footer estetik
+                welcome_embed.set_footer(
+                    text=f"Welcome • {member.name}",
+                    icon_url=member.display_avatar.url
+                )
+                
+                await welcome_channel.send(embed=welcome_embed)
+        except Exception as e:
+            print(f"❌ Error di on_member_join: {e}")
+    
+    async def on_member_remove(self, member: discord.Member):
+        """Event ketika ada member keluar/kicked/banned dari server"""
+        try:
+            # Send goodbye message ke #good-bye dengan design estetik
+            goodbye_channel = discord.utils.get(member.guild.text_channels, name="good-bye")
+            if goodbye_channel:
+                # Embed estetik dengan dark elegant color
+                goodbye_embed = discord.Embed(
+                    description=f"## 💫 Farewell, **{member.name}** 💫\n\n"
+                                f"Seseorang telah meninggalkan server...",
+                    color=0xFF6B9D,  # Pink soft estetik
+                    timestamp=datetime.now()
+                )
+                
+                # Set thumbnail (avatar member) ukuran kecil di pojok
+                goodbye_embed.set_thumbnail(url=member.display_avatar.url)
+                
+                # Author dengan server icon
+                if member.guild.icon:
+                    goodbye_embed.set_author(
+                        name=f"{member.guild.name}",
+                        icon_url=member.guild.icon.url
+                    )
+                
+                # Field dengan design menarik
+                goodbye_embed.add_field(
+                    name="👋 Sampai Jumpa",
+                    value=f"```\n💭 {member.name} telah pergi\n💝 Terima kasih atas kebersamaannya\n🌈 Semoga kita bertemu lagi!\n```",
+                    inline=False
+                )
+                
+                goodbye_embed.add_field(
+                    name="📊 Member Tersisa",
+                    value=f"```\n{member.guild.member_count} Members\n```",
+                    inline=True
+                )
+                
+                goodbye_embed.add_field(
+                    name="⏰ Waktu",
+                    value=f"```\n{datetime.now().strftime('%d %b %Y')}\n```",
+                    inline=True
+                )
+                
+                # Footer estetik
+                goodbye_embed.set_footer(
+                    text=f"Goodbye • We'll miss you",
+                    icon_url=member.display_avatar.url
+                )
+                
+                await goodbye_channel.send(embed=goodbye_embed)
+                print(f"👋 Goodbye message sent for {member.name}")
+        except Exception as e:
+            print(f"❌ Error di on_member_remove: {e}")
+
+    async def on_guild_channel_delete(self, channel: discord.TextChannel):
+        """Auto-close ticket ketika channel dihapus manual"""
+        try:
+            # Cek apakah channel ini adalah ticket channel
+            ticket = db.get_ticket_by_channel(channel.id)
+            
+            if ticket and ticket['status'] == 'open':
+                # Auto-close ticket
+                db.close_ticket(ticket['id'], closed_by=0)  # 0 = auto-closed
+                print(f"✅ Auto-closed ticket #{ticket['ticket_number']:04d} (channel deleted: {channel.name})")
+        except Exception as e:
+            print(f"❌ Error in on_guild_channel_delete: {e}")
+    
+    async def on_message(self, message: discord.Message):
+        # Skip DM messages
+        if not message.guild:
+            return
+        
+        # Ignore bot messages untuk processing lainnya
+        if message.author.bot:
+            return
+        
+        # Hanya proses jika ada guild
+        if not message.guild:
+            return
+        
+        # ===== AUTO-DETECT BUKTI TRANSFER DI TICKET CHANNEL =====
+        # Cek apakah ini ticket channel dan ada attachment gambar
+        ticket = db.get_ticket_by_channel(message.channel.id)
+        
+        if ticket and ticket['status'] == 'open' and message.attachments:
+            # Check ticket type
+            is_middleman = ticket.get('ticket_type') == 'middleman'
+            buyer_id = int(ticket['user_id'])
+            seller_id = int(ticket.get('seller_id')) if ticket.get('seller_id') else None
+            
+            # Cek apakah ada attachment gambar
+            for attachment in message.attachments:
+                if attachment.content_type and attachment.content_type.startswith('image/'):
+                    # MIDDLEMAN TICKET: Handle both buyer and seller proof
+                    if is_middleman:
+                        # Buyer uploading proof
+                        if message.author.id == buyer_id:
+                            await self.process_proof_submission(message, ticket, attachment.url, proof_type='buyer')
+                            break
+                        # Seller uploading proof
+                        elif seller_id and message.author.id == seller_id:
+                            await self.process_proof_submission(message, ticket, attachment.url, proof_type='seller')
+                            break
+                    # PURCHASE TICKET: Only buyer proof
+                    else:
+                        if message.author.id == buyer_id:
+                            await self.process_proof_submission(message, ticket, attachment.url)
+                            break
+        
+        # Cek guild config untuk auto-detect channels
+        guild_config = db.get_guild_config(message.guild.id)
+        auto_channels = guild_config.get('auto_detect_channels', [])
+        
+        # Jika auto_channels kosong, aktif di semua channel. Jika ada list, cek channel ini ada di list
+        if auto_channels and str(message.channel.id) not in auto_channels:
+            return
+        
+        # Gunakan regex dari config
+        regex_pattern = guild_config.get('auto_detect_regex', r"transaksi\s*(?:selesai)?[:\s]+([\d\.,]+)")
+        m = re.search(regex_pattern, message.content, re.IGNORECASE)
+        if not m:
+            return
+
+        raw_amount = m.group(1)
+        # Hapus titik/komma non-digit
+        amount_digits = re.sub(r"[^0-9]", "", raw_amount)
+        if not amount_digits:
+            return
+        try:
+            amount = int(amount_digits)
+        except Exception:
+            return
+
+        # Update stats untuk author menggunakan database
+        updated = db.update_user_stats(message.guild.id, message.author.id, amount)
+        db.add_transaction(message.guild.id, message.author.id, amount, category="auto_detect", notes=f"Auto-detected from message", recorded_by=None)
+        
+        # Cek achievement baru
+        new_achievements = db.check_and_unlock_achievement(message.guild.id, message.author.id)
+        
+        # Log activity
+        db.log_action(message.guild.id, message.author.id, "auto_detect_transaction", f"Amount: {amount}")
+
+        # Kirim konfirmasi
+        try:
+            msg = (
+                f"✅ Statistik untuk **{message.author.display_name}** diperbarui: "
+                f"Total Transaksi: **{updated.get('deals_completed',0)}**, "
+                f"Total IDR: **{format_idr(updated.get('total_idr_value',0))}**"
+            )
+            
+            # Tambahkan achievement baru jika ada
+            if new_achievements:
+                achievement_names = {
+                    'deals_10': '🎯 10 Transaksi',
+                    'deals_50': '🔥 50 Transaksi',
+                    'deals_100': '⭐ 100 Transaksi',
+                    'deals_500': '💎 500 Transaksi',
+                    'value_1m': '💰 Rp1 Juta',
+                    'value_5m': '💸 Rp5 Juta',
+                    'value_10m': '🏆 Rp10 Juta',
+                    'value_50m': '👑 Rp50 Juta',
+                }
+                achievement_text = ", ".join([achievement_names.get(a, a) for a in new_achievements])
+                msg += f"\n🎉 **Achievement Baru Unlocked!** {achievement_text}"
+            
+            await message.channel.send(msg)
+        except Exception:
+            pass
+    
+    async def process_proof_submission(self, message: discord.Message, ticket: dict, proof_url: str, proof_type: str = 'buyer'):
+        """Process auto-detected proof submission from image upload
+        
+        Args:
+            message: Discord message object
+            ticket: Ticket dictionary from database
+            proof_url: URL of the uploaded image
+            proof_type: 'buyer' for buyer payment proof, 'seller' for seller delivery proof
+        """
+        try:
+            print(f"\n{'='*60}")
+            print(f"🔍 PROCESSING {proof_type.upper()} PROOF: Ticket #{ticket['ticket_number']:04d}")
+            print(f"{'='*60}")
+            
+            # === SELLER PROOF (Simpler validation) ===
+            if proof_type == 'seller':
+                print("📦 Processing seller delivery proof...")
+                
+                # Run basic fraud detection (no transfer signature needed)
+                legitimate_check = await detect_legitimate_transfer_screenshot(proof_url)
+                manipulation_result = await detect_image_manipulation(proof_url)
+                
+                if manipulation_result['manipulation_detected'] and manipulation_result['confidence'] > 60:
+                    await message.channel.send(
+                        f"{message.author.mention}\n"
+                        "🚨 **GAMBAR MENCURIGAKAN TERDETEKSI!**\n\n"
+                        f"❌ Gambar terdeteksi manipulasi (confidence: {manipulation_result['confidence']:.1f}%)\n\n"
+                        "⚠️ Upload screenshot/bukti ASLI tanpa edit!"
+                    )
+                    await message.add_reaction("❌")
                     return
                 
-                self.confirmed = True
-                await interaction_btn.response.defer()
-                self.stop()
-            
-            @discord.ui.button(label="❌ Batal", style=discord.ButtonStyle.secondary, custom_id="cancel_approve", row=1)
-            async def cancel_approve(self, interaction_btn: discord.Interaction, button: discord.ui.Button):
-                self.confirmed = False
-                await interaction_btn.response.defer()
-                self.stop()
-        
-        # Defer interaction dulu untuk avoid timeout
-        await interaction.response.defer(ephemeral=True)
-        
-        # Show validation checklist
-        checklist_embed = discord.Embed(
-            title="🔐 Validasi Bukti Transfer",
-            description=(
-                f"**Admin:** {interaction.user.mention}\n"
-                f"**Ticket:** #{ticket['ticket_number']:04d}\n"
-                f"**Total:** {format_idr(grand_total)}\n\n"
-                f"⚠️ **WAJIB CEK SEMUA** sebelum approve:\n"
-                f"Klik setiap item untuk tandai sudah dicek ✅"
-            ),
-            color=0xE74C3C
-        )
-        checklist_embed.set_footer(text="⏱️ Timeout: 2 menit • Anti-Fraud System")
-        
-        view = ValidationChecklist()
-        await interaction.followup.send(embed=checklist_embed, view=view, ephemeral=True)
-        
-        await view.wait()
-        
-        if not view.confirmed:
-            await interaction.followup.send("❌ Approval dibatalkan.", ephemeral=True)
-            return
-        
-        # Proceed with approval
-        await interaction.followup.send("⏳ Memproses penyelesaian transaksi...", ephemeral=True)
-        
-        # Update user stats untuk setiap item
-        for item in items:
-            db.update_user_stats(ticket['guild_id'], int(ticket['user_id']), item['amount'])
-            db.add_transaction(
-                guild_id=int(ticket['guild_id']),
-                user_id=int(ticket['user_id']),
-                amount=item['amount'],
-                category="ticket_order",
-                notes=f"{item['item_name']} - {format_idr(item['amount'])} (Ticket #{ticket['ticket_number']:04d})",
-                recorded_by=interaction.user.id
-            )
-        
-        # Check achievements
-        new_achievements = db.check_and_unlock_achievement(int(ticket['guild_id']), int(ticket['user_id']))
-        
-        # Close ticket with approval tracking
-        db.close_ticket(ticket['id'], interaction.user.id, approved_by=interaction.user.id)
-        
-        # Get buyer info
-        buyer = interaction.guild.get_member(int(ticket['user_id']))
-        vouch_channel = discord.utils.get(interaction.guild.text_channels, name="vouch")
-        
-        # === SINGLE ELEGANT EMBED ===
-        success_embed = discord.Embed(
-            title="✨ Transaksi Berhasil",
-            description=f"{buyer.mention if buyer else 'Customer'}\n\nPembayaran diverifikasi. Terima kasih atas kepercayaan Anda!",
-            color=0x2ECC71,
-            timestamp=datetime.now()
-        )
-        
-        success_embed.add_field(
-            name="💰 Total",
-            value=f"**Rp{grand_total:,}**",
-            inline=True
-        )
-        
-        success_embed.add_field(
-            name="🎫 Ticket",
-            value=f"`#{ticket['ticket_number']:04d}`",
-            inline=True
-        )
-        
-        # Achievement badge if unlocked
-        if new_achievements:
-            ach_names = {
-                'deals_10': '🎯 10 Deals',
-                'deals_50': '🔥 50 Deals',
-                'deals_100': '⭐ 100 Deals',
-                'deals_500': '💎 500 Deals',
-                'value_1m': '💰 Rp1M',
-                'value_5m': '💸 Rp5M',
-                'value_10m': '🏆 Rp10M',
-                'value_50m': '👑 Rp50M',
-            }
-            ach_list = []
-            for achievement in new_achievements:
-                if isinstance(achievement, dict):
-                    ach_type = achievement.get('achievement_type', '')
-                    ach_list.append(ach_names.get(ach_type, ach_type))
-                else:
-                    ach_list.append(ach_names.get(achievement, achievement))
-            
-            success_embed.add_field(
-                name="🎉 Achievement",
-                value=" • ".join(ach_list),
-                inline=False
-            )
-        
-        # Vouch reminder
-        if vouch_channel:
-            success_embed.add_field(
-                name="💌 Testimoni",
-                value=f"Share pengalaman kamu di {vouch_channel.mention}",
-                inline=False
-            )
-        
-        success_embed.set_footer(
-            text="Channel ditutup dalam 60 detik",
-            icon_url=interaction.guild.icon.url if interaction.guild.icon else None
-        )
-        
-        await interaction.followup.send(embed=success_embed)
-        
-        # Auto-role CUST untuk buyer yang sudah transaksi
-        if buyer:
-            cust_role = discord.utils.get(interaction.guild.roles, name="CUST")
-            guest_role = discord.utils.get(interaction.guild.roles, name="Guest")
-            
-            if cust_role and cust_role not in buyer.roles:
-                try:
-                    await buyer.add_roles(cust_role, reason=f"Completed transaction - Ticket #{ticket['ticket_number']:04d}")
-                    print(f"✅ Auto-role 'CUST' diberikan ke {buyer.name}")
-                    
-                    # Auto-remove Guest role jika ada
-                    if guest_role and guest_role in buyer.roles:
-                        await buyer.remove_roles(guest_role, reason="Upgraded to CUST")
-                        print(f"🗑️ Role 'Guest' dihapus dari {buyer.name} (upgrade ke CUST)")
-                        
-                except Exception as e:
-                    print(f"⚠️ Gagal memberikan role CUST: {e}")
-        
-        # Post updated stats ke #cmd-bot (async, non-blocking)
-        import asyncio
-        asyncio.create_task(post_stats_to_cmd_bot(interaction, ticket, grand_total, new_achievements))
-        
-        # Trigger update leaderboard (non-blocking)
-        asyncio.create_task(trigger_leaderboard_update(interaction.guild))
-        
-        # Delete channel after 60 seconds
-        await asyncio.sleep(60)
-        try:
-            await interaction.channel.delete(reason=f"Ticket approved by {interaction.user.name}")
-        except Exception as e:
-            print(f"❌ Error deleting channel: {e}")
-    
-    except Exception as e:
-        print(f"❌ Error in done: {e}")
-        try:
-            await interaction.followup.send(f"❌ Error: {e}", ephemeral=True)
-        except:
-            pass
-
-
-async def trigger_leaderboard_update(guild: discord.Guild):
-    """Helper function untuk trigger update leaderboard setelah transaksi"""
-    try:
-        lb_data = db.get_leaderboard_message(guild.id)
-        
-        if not lb_data:
-            # Belum ada leaderboard message, skip
-            return
-        
-        try:
-            channel = guild.get_channel(lb_data['channel_id'])
-            if not channel:
+                # Save seller proof
+                db.update_seller_proof(ticket['id'], proof_url)
+                
+                # Send confirmation
+                seller_embed = discord.Embed(
+                    title="📦 Bukti Pengiriman Diterima",
+                    description=f"{message.author.mention} telah upload bukti pengiriman item.",
+                    color=0xFFA500,
+                    timestamp=datetime.now()
+                )
+                
+                seller_embed.add_field(
+                    name="🎫 Ticket ID",
+                    value=f"`#{ticket['ticket_number']:04d}`",
+                    inline=True
+                )
+                
+                seller_embed.add_field(
+                    name="📦 Item",
+                    value=f"`{ticket.get('item_description', 'N/A')}`",
+                    inline=True
+                )
+                
+                seller_embed.add_field(
+                    name="💰 Deal Price",
+                    value=f"**Rp{ticket.get('deal_price', 0):,}**",
+                    inline=True
+                )
+                
+                seller_embed.add_field(
+                    name="🔗 Bukti Seller",
+                    value=f"[📸 Klik untuk melihat]({proof_url})",
+                    inline=False
+                )
+                
+                seller_embed.add_field(
+                    name="⚙️ Next Step",
+                    value="Admin akan verifikasi dan release dana ke seller.\nGunakan `/approve-mm` untuk approve transaksi.",
+                    inline=False
+                )
+                
+                seller_embed.set_footer(
+                    text="⏳ Waiting admin approval | Middleman Transaction",
+                    icon_url=message.guild.icon.url if message.guild.icon else None
+                )
+                
+                # Get admin mentions
+                guild_config = db.get_guild_config(message.guild.id)
+                admin_roles = guild_config.get('admin_roles', [])
+                owner = message.guild.owner
+                
+                admin_mentions = [owner.mention]
+                for role_id in admin_roles:
+                    role = message.guild.get_role(int(role_id))
+                    if role:
+                        admin_mentions.append(role.mention)
+                
+                mention_text = " ".join(admin_mentions)
+                
+                await message.channel.send(
+                    f"🔔 {mention_text}\n\n"
+                    f"📦 **SELLER PROOF RECEIVED!**\n"
+                    f"Ticket #{ticket['ticket_number']:04d} - Seller telah upload bukti pengiriman.\n\n"
+                    f"Silakan verifikasi dan gunakan `/approve-mm` untuk release dana.",
+                    embed=seller_embed
+                )
+                
+                await message.add_reaction("✅")
+                print(f"✅ Seller proof saved successfully")
                 return
             
-            # Hapus message lama
-            try:
-                old_message = await channel.fetch_message(lb_data['message_id'])
-                await old_message.delete()
-            except discord.NotFound:
-                pass  # Message sudah dihapus
+            # === BUYER PROOF (Full 4-Layer Fraud Detection) ===
+            print("💰 Processing buyer payment proof with 4-Layer Fraud Detection...")
             
-            # Generate embed baru
-            embed = await client.generate_leaderboard_embed(guild)
+            # === LAYER 1: TRANSFER SIGNATURE CHECK (Account + Date + Amount) ===
+            print("📝 Layer 1: Extracting transfer signature...")
+            transfer_signature = await extract_transfer_signature(proof_url)
             
-            # Post message baru
-            new_message = await channel.send(embed=embed)
-            
-            # Update message ID di database
-            db.set_leaderboard_message(guild.id, channel.id, new_message.id)
-            
-            print(f"✅ Leaderboard updated setelah transaksi di {guild.name}")
-            
-        except Exception as e:
-            print(f"❌ Error update leaderboard: {e}")
-            
-    except Exception as e:
-        print(f"❌ Error trigger leaderboard update: {e}")
-
-
-async def post_stats_to_cmd_bot(interaction, ticket, grand_total, new_achievements):
-    """Helper function to post/update stats to #cmd-bot"""
-    try:
-        cmd_bot_channel = discord.utils.get(interaction.guild.text_channels, name="cmd-bot")
-        if not cmd_bot_channel:
-            print("⚠️ #cmd-bot channel not found, skipping stats post")
-            return
-        
-        buyer = interaction.guild.get_member(int(ticket['user_id']))
-        stats = db.get_user_stats(int(ticket['guild_id']), int(ticket['user_id']))
-        
-        if not buyer or not stats:
-            print("⚠️ Buyer or stats not found")
-            return
-        
-        # Get USD value
-        usd_value = stats['total_idr_value'] / 15000
-        
-        # Format dengan design elegant
-        stats_embed = discord.Embed(
-            title=f"👤 {buyer.display_name}",
-            description="Statistik Transaksi",
-            color=0x3498DB  # Elegant blue
-        )
-        
-        # Set thumbnail (avatar buyer)
-        try:
-            stats_embed.set_thumbnail(url=buyer.display_avatar.url)
-        except:
-            pass
-        
-        # Total Transaksi
-        stats_embed.add_field(
-            name="📊 Total Transaksi",
-            value=f"**{stats['deals_completed']}** deals",
-            inline=False
-        )
-        
-        # Total Belanja dengan USD
-        stats_embed.add_field(
-            name="💰 Total Belanja",
-            value=f"**{format_idr(stats['total_idr_value'])}**\n(≈ ${usd_value:,.2f} USD)",
-            inline=False
-        )
-        
-        # Tip untuk vouch
-        stats_embed.add_field(
-            name="💡 Tip: Jangan lupa vouch setelah transaksi!",
-            value="\u200b",
-            inline=False
-        )
-        
-        # Footer dengan info ticket
-        stats_embed.set_footer(
-            text=f"✅ Ticket #{ticket['ticket_number']:04d} • Approved by {interaction.user.name}",
-            icon_url=interaction.guild.icon.url if interaction.guild.icon else None
-        )
-        
-        # Cek apakah sudah ada message sebelumnya
-        existing_msg = db.get_user_stats_message(int(ticket['guild_id']), int(ticket['user_id']))
-        
-        if existing_msg:
-            # Update message yang sudah ada
-            try:
-                channel = interaction.guild.get_channel(existing_msg['channel_id'])
-                if channel:
-                    message = await channel.fetch_message(existing_msg['message_id'])
-                    await message.edit(content=buyer.mention, embed=stats_embed)
-                    print(f"✅ Updated stats in #cmd-bot for {buyer.name}")
+            if transfer_signature:
+                print(f"✅ Transfer signature: {transfer_signature}")
+                # Check exact match by transfer signature
+                exact_duplicate = db.check_duplicate_proof(
+                    guild_id=message.guild.id,
+                    transfer_signature=transfer_signature
+                )
+                
+                if exact_duplicate:
+                    print(f"🚨 LAYER 1 FRAUD DETECTED: Signature match with Ticket #{exact_duplicate['ticket_number']:04d}")
+                    # EXACT SAME TRANSFER DETECTED (same account, date, amount)
+                    duplicate_user = await message.guild.fetch_member(int(exact_duplicate['user_id']))
+                    
+                    await message.channel.send(
+                        f"{message.author.mention}\n"
+                        "🚨 **TRANSFER YANG SAMA TERDETEKSI!**\n\n"
+                        f"❌ Transfer dengan **rekening, tanggal, dan nominal yang sama** sudah digunakan di:\n"
+                        f"• **Ticket:** `#{exact_duplicate['ticket_number']:04d}`\n"
+                        f"• **User:** {duplicate_user.mention if duplicate_user else 'Unknown'}\n"
+                        f"• **Username:** `{exact_duplicate['game_username']}`\n"
+                        f"• **Tanggal:** {exact_duplicate['created_at']}\n"
+                        f"• **Status:** `{exact_duplicate['status']}`\n\n"
+                        "⚠️ **Gunakan screenshot ASLI dari transfer Anda!**\n"
+                        "Setiap transaksi harus menggunakan bukti transfer yang berbeda.\n\n"
+                        f"*(Transfer Signature: {transfer_signature[:30]}...)*"
+                    )
+                    
+                    await message.channel.send(
+                        f"🚨 **FRAUD ALERT:** {message.author.mention} mencoba submit transfer yang sama dengan Ticket #{exact_duplicate['ticket_number']:04d}"
+                    )
                     return
-            except discord.NotFound:
-                # Message sudah dihapus, post baru
-                print(f"⚠️ Old stats message not found, posting new one")
-            except Exception as e:
-                print(f"⚠️ Error updating stats message: {e}")
-        
-        # Post message baru
-        message = await cmd_bot_channel.send(content=buyer.mention, embed=stats_embed)
-        
-        # Simpan message ID
-        db.set_user_stats_message(int(ticket['guild_id']), int(ticket['user_id']), cmd_bot_channel.id, message.id)
-        
-        print(f"✅ Posted new stats to #cmd-bot for {buyer.name}")
-        
-    except Exception as e:
-        print(f"❌ Error posting stats to #cmd-bot: {e}")
-
-
-# --- Slash Command: /reject-ticket ---
-@client.tree.command(
-    name="reject-ticket",
-    description="[ADMIN] Reject transaksi di ticket ini."
-)
-@app_commands.describe(reason='Alasan penolakan')
-@app_commands.default_permissions(administrator=True)
-async def reject_ticket(interaction: discord.Interaction, reason: str = "Bukti transfer tidak valid"):
-    await interaction.response.defer()
-    
-    ticket = db.get_ticket_by_channel(interaction.channel.id)
-    
-    if not ticket:
-        await interaction.followup.send("❌ Command ini hanya bisa digunakan di ticket channel.", ephemeral=True)
-        return
-    
-    if ticket['status'] != 'open':
-        await interaction.followup.send("❌ Ticket ini sudah ditutup.", ephemeral=True)
-        return
-    
-    # Close ticket
-    db.close_ticket(ticket['id'], interaction.user.id)
-    
-    reject_embed = discord.Embed(
-        title="❌ Transaksi Ditolak",
-        description=f"Pembayaran tidak dapat diverifikasi oleh admin.",
-        color=0xE74C3C,  # Elegant red
-        timestamp=datetime.now()
-    )
-    
-    reject_embed.add_field(name="📝 Alasan Penolakan", value=reason, inline=False)
-    reject_embed.add_field(name="💡 Saran", value="Silakan hubungi admin untuk klarifikasi lebih lanjut.", inline=False)
-    reject_embed.set_footer(text="🕒 Channel akan ditutup dalam 30 detik", icon_url=interaction.guild.icon.url if interaction.guild.icon else None)
-    
-    await interaction.channel.send(embed=reject_embed)
-    await interaction.followup.send("❌ Rejected! Channel akan dihapus dalam 30 detik.")
-    
-    import asyncio
-    await asyncio.sleep(30)
-    try:
-        await interaction.channel.delete(reason=f"Ticket rejected by {interaction.user.name}")
-    except:
-        pass
-
-
-# --- Slash Command: /close ---
-@client.tree.command(
-    name="close",
-    description="Tutup ticket Anda (buyer atau admin)."
-)
-async def close_ticket(interaction: discord.Interaction):
-    try:
-        await interaction.response.defer()
-        
-        ticket = db.get_ticket_by_channel(interaction.channel.id)
-        
-        if not ticket:
-            await interaction.followup.send("❌ Command ini hanya bisa digunakan di ticket channel.", ephemeral=True)
-            return
-        
-        if ticket['status'] != 'open':
-            await interaction.followup.send("❌ Ticket ini sudah ditutup.", ephemeral=True)
-            return
-        
-        # Check permission
-        if int(ticket['user_id']) != interaction.user.id and not interaction.user.guild_permissions.administrator:
-            await interaction.followup.send("❌ Hanya owner ticket atau admin yang bisa close ticket.", ephemeral=True)
-            return
-        
-        db.close_ticket(ticket['id'], interaction.user.id)
-        
-        close_embed = discord.Embed(
-            title="🔒 Ticket Ditutup",
-            description=f"Ticket telah ditutup oleh {interaction.user.mention}",
-            color=0xE67E22,  # Elegant orange
-            timestamp=datetime.now()
-        )
-        
-        close_embed.add_field(name="💬 Catatan", value="Terima kasih telah menggunakan layanan kami.", inline=False)
-        close_embed.set_footer(text="🕑 Channel akan dihapus dalam 10 detik", icon_url=interaction.guild.icon.url if interaction.guild.icon else None)
-        
-        await interaction.followup.send("✅ Ticket ditutup. Channel akan dihapus dalam 10 detik.")
-        await interaction.channel.send(embed=close_embed)
-        
-        # Delete channel after 10 seconds
-        import asyncio
-        await asyncio.sleep(10)
-        try:
-            await interaction.channel.delete(reason=f"Ticket closed by {interaction.user.name}")
-        except Exception as e:
-            print(f"❌ Error deleting channel: {e}")
-    
-    except Exception as e:
-        print(f"❌ Error in close_ticket: {e}")
-        try:
-            await interaction.followup.send(f"❌ Error: {e}", ephemeral=True)
-        except:
-            pass
-
-
-# --- Slash Command: /setup-ticket ---
-@client.tree.command(
-    name="setup-ticket",
-    description="[OWNER] Setup channel open-ticket untuk buyer."
-)
-@owner_only()
-async def setup_ticket_channel(interaction: discord.Interaction):
-    await interaction.response.defer(ephemeral=True)
-    
-    # Cek apakah channel sudah ada
-    existing_channel = discord.utils.get(interaction.guild.text_channels, name="open-ticket")
-    
-    if existing_channel:
-        await interaction.followup.send(
-            f"✅ Channel {existing_channel.mention} sudah ada.\n"
-            f"Buyer bisa langsung ketik username game mereka di channel tersebut untuk buka ticket.",
-            ephemeral=True
-        )
-        return
-    
-    # Buat channel open-ticket
-    try:
-        # Cari kategori "TICKETS" (case-insensitive)
-        tickets_category = None
-        for category in interaction.guild.categories:
-            if category.name.upper() == "TICKETS":
-                tickets_category = category
-                break
-        
-        # Create channel dengan permission @everyone bisa read & send
-        overwrites = {
-            interaction.guild.default_role: discord.PermissionOverwrite(
-                read_messages=True,
-                send_messages=True,
-                add_reactions=False,
-                attach_files=False
-            ),
-            interaction.guild.me: discord.PermissionOverwrite(
-                read_messages=True,
-                send_messages=True,
-                manage_messages=True
+                else:
+                    print("✅ No signature duplicates found")
+            else:
+                print("⚠️ Could not extract transfer signature (OCR unavailable or failed)")
+            
+            # === LAYER 1.5: SMART FRAUD DETECTION (Whitelist + Manipulation) ===
+            print("\n🔍 Layer 1.5: Checking screenshot legitimacy...")
+            
+            # STEP 1: Check if screenshot is from known legitimate source
+            legitimate_check = await detect_legitimate_transfer_screenshot(proof_url)
+            
+            if legitimate_check['is_legitimate']:
+                print(f"✅ WHITELISTED: {legitimate_check['source']} (confidence: {legitimate_check['confidence']:.1f}%)")
+                print("   ⏭️  Skipping manipulation detection for legitimate banking app screenshot")
+                # BYPASS manipulation detection - proceed directly to next layer
+            else:
+                # STEP 2: Screenshot source unclear, run manipulation detection
+                print(f"⚠️ Unknown source (confidence: {legitimate_check['confidence']:.1f}%) - running manipulation check...")
+                manipulation_result = await detect_image_manipulation(proof_url)
+                
+                if manipulation_result['manipulation_detected']:
+                    print(f"🚨 LAYER 1.5 FRAUD: Image manipulation detected!")
+                    
+                    # Build warning message
+                    warning_list = "\n".join([f"   {w}" for w in manipulation_result['warnings']])
+                    
+                    await message.channel.send(
+                        f"{message.author.mention}\n"
+                        "🚨 **GAMBAR MENCURIGAKAN TERDETEKSI!**\n\n"
+                        f"❌ Sistem mendeteksi **manipulasi gambar** dengan confidence **{manipulation_result['confidence']:.1f}%**:\n\n"
+                        f"{warning_list}\n\n"
+                        "⚠️ **PERINGATAN:**\n"
+                        "• Screenshot transfer **TIDAK BOLEH** diedit/dicoret\n"
+                        "• Gunakan screenshot **ASLI** dari aplikasi banking/e-wallet\n"
+                        "• **Admin akan REJECT** bukti transfer yang diedit!\n\n"
+                        "💡 **Gunakan screenshot dari:**\n"
+                        "• BCA Mobile, Mandiri Online, BRI Mobile\n"
+                        "• GoPay, OVO, Dana, ShopeePay\n"
+                        "• Bank lainnya (screenshot asli tanpa edit)\n\n"
+                        "Silakan upload ulang bukti transfer yang ASLI."
+                    )
+                    
+                    await message.channel.send(
+                        f"🚨 **MANIPULATION ALERT:** {message.author.mention} upload bukti transfer dengan manipulasi (confidence: {manipulation_result['confidence']:.1f}%)"
+                    )
+                    
+                    # CRITICAL: HARD BLOCK - Stop processing immediately!
+                    # DO NOT save to database, DO NOT send confirmation embed
+                    await message.add_reaction("❌")
+                    print("🚫 Processing stopped due to image manipulation detection")
+                    return  # STOP HERE - No further processing!
+            
+            # === LAYER 2: PERCEPTUAL HASH CHECK (Image Similarity) ===
+            print("\n🎨 Layer 2: Generating perceptual hash...")
+            print(f"   Image URL: {proof_url[:80]}...")
+            proof_hash = await get_image_hash(proof_url)
+            
+            if proof_hash:
+                print(f"   ✅ Hash generated successfully!")
+                print(f"   dhash: {proof_hash['dhash'][:16]}...")
+                print(f"   phash: {proof_hash['phash'][:16]}...")
+                print(f"   ahash: {proof_hash['ahash'][:16]}...")
+                print(f"   combined: {proof_hash['combined'][:50]}...")
+                
+                # CRITICAL FIX: Save hash FIRST before checking (so we have data to compare)
+                print(f"💾 Saving hashes to database...")
+                print(f"   Ticket ID: {ticket['id']}")
+                print(f"   Transfer signature: {transfer_signature[:30] if transfer_signature else 'None'}...")
+                db.save_proof_hash(ticket['id'], proof_hash['combined'], transfer_signature)
+                print("✅ Hashes saved successfully")
+                
+                # Now check similarity (will compare with OTHER tickets, excluding current one)
+                print(f"\n🔍 Multi-algorithm similarity check...")
+                print(f"   Current ticket ID to EXCLUDE: {ticket['id']}")
+                duplicate = await check_similar_images(
+                    message.guild.id, 
+                    proof_hash,
+                    current_ticket_id=ticket['id']
+                )
+                print(f"   Duplicate result: {duplicate}")
+                
+                if duplicate:
+                    # Check if this is SAME ticket (user trying to upload same image again)
+                    if duplicate.get('is_same_ticket'):
+                        print(f"🚨 LAYER 2 FRAUD: User trying to upload SAME image to SAME ticket!")
+                        await message.channel.send(
+                            f"{message.author.mention}\n"
+                            "🚨 **GAMBAR SAMA TERDETEKSI!**\n\n"
+                            f"❌ Anda **sudah upload gambar ini** ke ticket ini sebelumnya!\n"
+                            f"• **Similarity:** {duplicate['similarity']}\n\n"
+                            "⚠️ **Tidak boleh upload gambar yang sama 2x!**\n"
+                            "Jika ingin ganti bukti transfer, upload **screenshot yang BERBEDA**.\n\n"
+                            f"*(Detected via {duplicate['algorithm']} | {duplicate['all_distances']})*"
+                        )
+                        await message.add_reaction("❌")
+                        return
+                    
+                    # Different ticket - fraud attempt
+                    print(f"🚨 LAYER 2 FRAUD DETECTED: Image similarity with Ticket #{duplicate['ticket_number']:04d}")
+                    # Gambar similar terdeteksi
+                    duplicate_user = await message.guild.fetch_member(int(duplicate['user_id']))
+                    
+                    await message.channel.send(
+                        f"{message.author.mention}\n"
+                        "🚨 **GAMBAR SERUPA TERDETEKSI!**\n\n"
+                        f"❌ Screenshot ini **{duplicate['similarity']} mirip** dengan gambar di:\n"
+                        f"• **Ticket:** `#{duplicate['ticket_number']:04d}`\n"
+                        f"• **User:** {duplicate_user.mention if duplicate_user else 'Unknown'}\n"
+                        f"• **Username:** `{duplicate['game_username']}`\n"
+                        f"• **Tanggal:** {duplicate['created_at']}\n"
+                        f"• **Status:** `{duplicate['status']}`\n\n"
+                        "⚠️ **Gunakan screenshot ASLI dari transfer Anda!**\n"
+                        "Bukti transfer harus unik untuk setiap transaksi.\n\n"
+                        f"*(Detected via {duplicate['algorithm']} | {duplicate['all_distances']})*"
+                    )
+                    
+                    await message.channel.send(
+                        f"⚠️ **FRAUD ALERT:** {message.author.mention} mencoba submit gambar mirip ({duplicate['similarity']}) dengan Ticket #{duplicate['ticket_number']:04d}"
+                    )
+                    return
+                else:
+                    print("✅ No similar images found")
+            
+            # Ambil data items
+            items = db.get_ticket_items(ticket['id'])
+            if not items:
+                await message.channel.send(
+                    f"{message.author.mention} ❌ Belum ada item di ticket ini. Gunakan `/add` terlebih dahulu."
+                )
+                return
+            
+            grand_total = sum(i['amount'] for i in items)
+            
+            # ===== LAYER 3: OCR AMOUNT DETECTION =====
+            detected_amount = await extract_amount_from_image(proof_url)
+            amount_warning = None
+            
+            if detected_amount:
+                # Compare detected amount with expected total
+                tolerance = 1000  # Allow Rp1.000 difference (for fees, etc)
+                diff = abs(detected_amount - grand_total)
+                
+                if diff > tolerance:
+                    # Amount mismatch detected!
+                    amount_warning = (
+                        f"⚠️ **PERINGATAN NOMINAL TIDAK SESUAI!**\n"
+                        f"• **Terdeteksi di Screenshot:** {format_idr(detected_amount)}\n"
+                        f"• **Yang Seharusnya:** {format_idr(grand_total)}\n"
+                        f"• **Selisih:** {format_idr(diff)}\n\n"
+                        f"🚨 Admin harap **CEK ULANG** bukti transfer ini!"
+                    )
+            
+            # Buat embed bukti transfer
+            submit_embed = discord.Embed(
+                title="📨 Bukti Transfer Diterima",
+                description=f"{message.author.mention} telah mengirimkan bukti pembayaran untuk diverifikasi.",
+                color=0xE67E22 if amount_warning else 0x1ABC9C,  # Orange if warning, green if ok
+                timestamp=datetime.now()
             )
-        }
-        
-        channel = await interaction.guild.create_text_channel(
-            name="open-ticket",
-            overwrites=overwrites,
-            category=tickets_category,  # Masukkan ke kategori TICKETS jika ada
-            topic="📝 Ketik username game Anda di sini untuk membuka ticket order"
-        )
-        
-        # Kirim instruksi di channel
-        # Initialize items if not exists
-        items = db.get_all_items(interaction.guild.id)
-        if not items:
-            db.init_default_items(interaction.guild.id)
-            items = db.get_all_items(interaction.guild.id)
-        
-        rate = db.get_robux_rate(interaction.guild.id)
-        
-        instruction_embed = discord.Embed(
-            title="🎫 Open Ticket - Panduan",
-            description=f"Selamat datang! Gift Fish-It Roblox dengan rate **Rp{rate}/Robux**",
-            color=discord.Color.blue(),
-            timestamp=datetime.now()
-        )
-        
-        instruction_embed.add_field(
-            name="📝 Cara Buka Ticket",
-            value=(
-                "**1.** Klik tombol **Create Ticket** di bawah\n\n"
-                "**2.** Input username game Anda (min 3 karakter)\n"
-                "**Contoh:** `AbuyyXZ777`\n\n"
-                "**3.** Bot akan create private ticket channel\n\n"
-                "**4.** Pilih item dari dropdown menu di ticket\n\n"
-                "**5.** Masukkan quantity & konfirmasi\n\n"
-                "**6.** Upload bukti pembayaran (auto-detect)"
-            ),
-            inline=False
-        )
-        
-        instruction_embed.add_field(
-            name="💳 Pembayaran",
-            value="Admin akan berikan **QRIS** di ticket Anda",
-            inline=False
-        )
-        
-        instruction_embed.add_field(
-            name="⚡ Penting",
-            value=(
-                "• 1 user hanya bisa punya 1 ticket aktif\n"
-                "• Upload bukti transfer ASLI (tidak boleh edit)\n"
-                "• Button akan tetap ada meski bot restart\n"
-                "• Pilih item langsung dari dropdown menu"
-            ),
-            inline=False
-        )
-        
-        instruction_embed.set_footer(text="🎮 Fish-It Roblox Gift Service • Trusted Seller")
-        
-        # Send embed with button
-        view = CreateTicketButton()
-        message = await channel.send(embed=instruction_embed, view=view)
-        
-        # Save message ID to database
-        db.set_ticket_setup_message(interaction.guild.id, channel.id, message.id, "rate_system")
-        
-        # Konfirmasi ke admin
-        category_info = f" di kategori **{tickets_category.name}**" if tickets_category else ""
-        await interaction.followup.send(
-            f"✅ Channel {channel.mention} berhasil dibuat{category_info}!\n\n"
-            f"**Setup selesai!** Buyer sekarang bisa:\n"
-            f"1. Masuk ke {channel.mention}\n"
-            f"2. Klik tombol **Create Ticket**\n"
-            f"3. Input username game mereka\n"
-            f"4. Bot akan auto-create ticket private channel\n\n"
-            f"**Note:** Pastikan bot punya permission `Manage Channels` dan `Manage Messages`.\n"
-            f"Button akan tetap ada meskipun bot restart (persistent button).",
-            ephemeral=True
-        )
-        
-        # Log action
-        db.log_action(
-            guild_id=interaction.guild.id,
-            user_id=interaction.user.id,
-            action="setup_ticket_channel",
-            details=f"Created #open-ticket channel: {channel.id}"
-        )
-        
-    except discord.Forbidden:
-        await interaction.followup.send(
-            "❌ Bot tidak punya permission untuk membuat channel.\n"
-            "Enable `Manage Channels` permission untuk bot role.",
-            ephemeral=True
-        )
-    except Exception as e:
-        await interaction.followup.send(f"❌ Error: {e}", ephemeral=True)
+            
+            submit_embed.add_field(name="🎫 Ticket ID", value=f"`#{ticket['ticket_number']:04d}`", inline=True)
+            submit_embed.add_field(name="👤 Username", value=f"`{ticket['game_username']}`", inline=True)
+            submit_embed.add_field(name="💳 Total", value=f"**{format_idr(grand_total)}**\n(≈ ${grand_total / 15000:,.2f} USD)", inline=True)
+            
+            items_list = []
+            for i in items:
+                items_list.append(f"`{i['item_name']}` — {format_idr(i['amount'])}")
+            
+            submit_embed.add_field(
+                name="📦 Detail Order",
+                value="\n".join(items_list),
+                inline=False
+            )
+            
+            # Add OCR detection info if available
+            if detected_amount:
+                ocr_status = "✅ Sesuai" if not amount_warning else f"❌ TIDAK SESUAI (Rp{detected_amount:,})"
+                submit_embed.add_field(
+                    name="🤖 Auto-Detect Nominal",
+                    value=ocr_status,
+                    inline=False
+                )
+            
+            # Add transfer signature if detected
+            if transfer_signature:
+                submit_embed.add_field(
+                    name="🔐 Transfer Signature",
+                    value=f"`{transfer_signature[:40]}...`",
+                    inline=False
+                )
+            
+            submit_embed.add_field(
+                name="🔗 Bukti Transfer",
+                value=f"[📸 Klik untuk melihat bukti]({proof_url})",
+                inline=False
+            )
+            
+            submit_embed.add_field(
+                name="⚙️ Admin Panel",
+                value="✅ `/done` — Setujui transaksi\n❌ `/reject-ticket` — Tolak transaksi",
+                inline=False
+            )
+            
+            submit_embed.set_footer(
+                text="⏳ Menunggu verifikasi admin | 4-Layer Fraud Detection", 
+                icon_url=interaction.guild.icon.url if interaction.guild.icon else None
+            )
+            
+            # Save ke database
+            db.update_ticket_proof(ticket['id'], proof_url)
+            if proof_hash:
+                db.save_proof_hash(ticket['id'], proof_hash['combined'], transfer_signature)
+            
+            # Update mm_status if middleman ticket
+            if ticket.get('ticket_type') == 'middleman':
+                db.update_mm_status(ticket['id'], 'waiting_item_delivery')
+            
+            # GET ADMIN & OWNER untuk TAG
+            guild_config = db.get_guild_config(message.guild.id)
+            admin_roles = guild_config.get('admin_roles', [])
+            owner = message.guild.owner
+            
+            admin_mentions = []
+            for role_id in admin_roles:
+                role = message.guild.get_role(int(role_id))
+                if role:
+                    admin_mentions.append(role.mention)
+            
+            # Mention admin & owner
+            mention_text = f"{owner.mention} "
+            if admin_mentions:
+                mention_text += " ".join(admin_mentions)
+            
+            # Determine command based on ticket type
+            is_middleman = ticket.get('ticket_type') == 'middleman'
+            approve_cmd = "/approve-mm" if is_middleman else "/done"
+            reject_cmd = "/reject-mm" if is_middleman else "/reject-ticket"
+            
+            # SEND dengan TAG ADMIN & OWNER
+            await message.channel.send(
+                f"🔔 {mention_text}\n\n"
+                f"✅ **BUKTI TRANSFER BERHASIL TERDETEKSI!**\n"
+                f"📌 Ticket #{ticket['ticket_number']:04d} - {message.author.mention}\n"
+                f"💰 Total: **{format_idr(grand_total)}**\n\n"
+                f"⚡ Fraud Detection: **PASSED** (All Layers)\n"
+                f"🤖 Screenshot: **LEGITIMATE** (Confidence: {legitimate_check['confidence']:.1f}%)\n\n"
+                f"Admin harap verifikasi menggunakan:\n"
+                f"• ✅ `{approve_cmd}` — Approve transaksi\n"
+                f"• ❌ `{reject_cmd}` — Reject transaksi",
+                embed=submit_embed
+            )
+            
+            # Send warning message if amount mismatch
+            if amount_warning:
+                await message.channel.send(
+                    f"⚠️ {mention_text}\n\n{amount_warning}"
+                )
+                await message.add_reaction("⚠️")
+            else:
+                await message.add_reaction("✅")  # React checkmark ke gambar yang diupload
+            
+        except Exception as e:
+            print(f"❌ Error processing auto-proof: {e}")
+            import traceback
+            traceback.print_exc()
+            await message.channel.send(
+                f"{message.author.mention} ❌ Gagal memproses bukti transfer otomatis. Coba upload ulang screenshot."
+            )
 
 
-# --- Slash Command: /setup-mm ---
+# --- Slash Command: /sync (OWNER ONLY) ---
 @client.tree.command(
-    name="setup-mm",
-    description="[OWNER] Setup channel untuk middleman ticket system."
+    name="sync",
+    description="[OWNER] Force sync slash commands with Discord."
 )
 @owner_only()
-async def setup_mm_channel(interaction: discord.Interaction):
+async def sync_commands(interaction: discord.Interaction):
+    """Force sync all slash commands."""
     await interaction.response.defer(ephemeral=True)
+    try:
+        synced = await client.tree.sync(guild=interaction.guild)
+        await interaction.followup.send(f"✅ Berhasil sinkronisasi {len(synced)} command(s) ke server ini.", ephemeral=True)
+        print(f"✅ Force sync completed by {interaction.user.name}. Synced {len(synced)} commands.")
+    except Exception as e:
+        await interaction.followup.send(f"❌ Gagal sinkronisasi: {e}", ephemeral=True)
+        print(f"❌ Force sync failed: {e}")
+
+
+# --- Kelas Bot Discord ---
+intents = discord.Intents.default()
+intents.members = True
+intents.message_content = True
+
+# Whitelist server yang diizinkan
+# Whitelist server yang diizinkan
+ALLOWED_GUILDS = [
+    1445079009405833299,  # ASBLOX - Server utama
+]
+
+class MyClient(discord.Client):
+    def __init__(self, *, intents: discord.Intents):
+        super().__init__(intents=intents)
+        self.tree = app_commands.CommandTree(self)
+
+    async def setup_hook(self):
+        """Called when the bot is starting"""
+        # Hapus command lama yang tidak terpakai untuk menghindari duplikasi
+        self.tree.remove_command('approve-ticket')
+        
+        # Register persistent view untuk button
+        self.add_view(CreateTicketButton())
+        self.add_view(CreateMiddlemanButton())
+        # Start auto-backup task
+        self.auto_backup_task.start()
+        # Start auto-update leaderboard task
+        self.auto_update_leaderboard.start()
     
-    # Cek apakah channel sudah ada
-    existing_channel = discord.utils.get(interaction.guild.text_channels, name="create-ticket-mm")
+    async def on_ready(self):
+        print(f'✅ Bot berhasil Login sebagai {self.user} (ID: {self.user.id})')
+        print(f"📡 Bot aktif di {len(self.guilds)} server")
+        for guild in self.guilds:
+            print(f"   - {guild.name} (ID: {guild.id})")
+            # Auto-leave jika bukan server yang diizinkan
+            if guild.id not in ALLOWED_GUILDS:
+                print(f"⚠️ Server {guild.name} tidak ada di whitelist, keluar...")
+                await guild.leave()
+                print(f"✅ Bot keluar dari server {guild.name}")
+        print("⏳ Mencoba sinkronisasi Slash Commands...")
+        try:
+            # Sync to specific guilds first (faster)
+            for guild in self.guilds:
+                if guild.id in ALLOWED_GUILDS:
+                    synced_guild = await self.tree.sync(guild=guild)
+                    print(f"🎉 {len(synced_guild)} Commands synced to {guild.name}")
+            
+            # Then global sync as backup
+            synced = await self.tree.sync()
+            print(f"🎉 {len(synced)} Slash Commands synced globally!")
+            print("💡 Commands sekarang tersedia di semua server!")
+        except Exception as e:
+            print(f"❌ Gagal sinkronisasi commands: {e}")
+            import traceback
+            traceback.print_exc()
     
-    if existing_channel:
-        await interaction.followup.send(
-            f"✅ Channel {existing_channel.mention} sudah ada.\n"
-            f"User bisa langsung klik button untuk create middleman ticket.",
-            ephemeral=True
+    @tasks.loop(hours=24)
+    async def auto_backup_task(self):
+        """Auto-backup setiap 24 jam"""
+        try:
+            print("🔄 Menjalankan auto-backup...")
+            # Backup untuk setiap guild
+            backup_dir = os.path.join(DATA_DIR, 'backups')
+            os.makedirs(backup_dir, exist_ok=True)
+            
+            # Backup semua guilds
+            for guild in self.guilds:
+                all_stats = db.get_all_user_stats(guild.id)
+                if not all_stats:
+                    continue
+                    
+                backup_data = {
+                    stat['user_id']: {
+                        'deals_completed': stat['deals_completed'],
+                        'total_idr_value': stat['total_idr_value']
+                    }
+                    for stat in all_stats
+                }
+            
+                timestamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')
+                backup_file = os.path.join(backup_dir, f'auto_backup_{guild.id}_{timestamp}.json')
+                
+                with open(backup_file, 'w', encoding='utf-8') as f:
+                    json.dump(backup_data, f, indent=2, ensure_ascii=False)
+                
+                print(f"✅ Auto-backup selesai untuk {guild.name}: {backup_file}")
+            
+            # Hapus backup lama (simpan hanya 30 backup terakhir)
+            files = [os.path.join(backup_dir, f) for f in os.listdir(backup_dir) if f.startswith('auto_backup_')]
+            files.sort(key=os.path.getmtime, reverse=True)
+            for old_file in files[30:]:
+                try:
+                    os.remove(old_file)
+                    print(f"🗑️ Hapus backup lama: {old_file}")
+                except:
+                    pass
+        except Exception as e:
+            print(f"❌ Error saat auto-backup: {e}")
+    
+    @auto_backup_task.before_loop
+    async def before_auto_backup(self):
+        """Wait until bot is ready"""
+        await self.wait_until_ready()
+    
+    @tasks.loop(hours=1)
+    async def auto_update_leaderboard(self):
+        """Auto-update leaderboard di #lb-rich-daily setiap 1 jam"""
+        try:
+            for guild in self.guilds:
+                # Cek apakah ada message leaderboard yang tersimpan
+                lb_data = db.get_leaderboard_message(guild.id)
+                
+                if not lb_data:
+                    # Belum ada message, skip
+                    continue
+                
+                try:
+                    # Ambil channel
+                    channel = guild.get_channel(lb_data['channel_id'])
+                    if not channel:
+                        continue
+                    
+                    # Hapus message lama
+                    try:
+                        old_message = await channel.fetch_message(lb_data['message_id'])
+                        await old_message.delete()
+                    except discord.NotFound:
+                        pass  # Message sudah dihapus
+                    
+                    # Generate leaderboard embed terbaru
+                    embed = await client.generate_leaderboard_embed(guild)
+                    
+                    # Post message baru
+                    new_message = await channel.send(embed=embed)
+                    
+                    # Update message ID di database
+                    db.set_leaderboard_message(guild.id, channel.id, new_message.id)
+                    
+                    print(f"✅ Leaderboard auto-updated untuk {guild.name}")
+                    
+                except Exception as e:
+                    print(f"❌ Error update leaderboard {guild.name}: {e}")
+                    
+        except Exception as e:
+            print(f"❌ Error auto-update leaderboard: {e}")
+    
+    @auto_update_leaderboard.before_loop
+    async def before_auto_update_leaderboard(self):
+        """Wait until bot is ready"""
+        await self.wait_until_ready()
+    
+    async def generate_leaderboard_embed(self, guild: discord.Guild) -> discord.Embed:
+        """Generate embed untuk auto-update leaderboard harian"""
+        from datetime import datetime as dt
+        
+        # Ambil top 10 daily stats
+        daily_stats = db.get_daily_leaderboard(guild.id, limit=10)
+        
+        # Buat embed modern
+        embed = discord.Embed(
+            title="Hourly Leaderboard — Top Sultan 1 Jam Terakhir",
+            description="",
+            color=0x00D9FF,  # Cyan modern
+            timestamp=dt.now()
         )
-        return
+        
+        # Set thumbnail
+        if guild.icon:
+            embed.set_thumbnail(url=guild.icon.url)
+        
+        # Build leaderboard
+        if not daily_stats:
+            embed.description = "**Belum ada transaksi hari ini.**\n\nJadi yang pertama!"
+        else:
+            leaderboard_lines = []
+            ranking_emoji = {1: "👑", 2: "⭐", 3: "🔥"}
+            
+            for idx, stat in enumerate(daily_stats, 1):
+                try:
+                    member = await guild.fetch_member(int(stat['user_id']))
+                    name = member.display_name
+                except:
+                    name = f"Unknown User"
+                
+                # Top 1-3 special, top 4-10 diamond
+                if idx in ranking_emoji:
+                    rank = ranking_emoji[idx]
+               
+                else:
+                    rank = "💎"  # Diamond untuk rank 4-10
+                
+                leaderboard_lines.append(
+                    f"{rank} **{name}**\n"
+                    f"{stat['deals_count']} deals • **{format_idr(stat['hourly_spend'])}**"
+                )
+            
+            embed.description = "\n\n".join(leaderboard_lines)
+        
+        # Footer
+        embed.set_footer(
+            text="Auto-update setiap 1 jam • Rolling window 1 jam",
+            icon_url=guild.icon.url if guild.icon else None
+        )
+        
+        return embed
     
+    async def on_guild_join(self, guild: discord.Guild):
+        """Event ketika bot di-invite ke server baru"""
+        if guild.id not in ALLOWED_GUILDS:
+            print(f"⚠️ Bot di-invite ke server tidak diizinkan: {guild.name} (ID: {guild.id})")
+            print(f"✅ Bot otomatis keluar dari {guild.name}")
+            await guild.leave()
+    
+    async def on_member_join(self, member: discord.Member):
+        """Event ketika ada member baru join server"""
+        try:
+            # Cari role "Guest"
+            guest_role = discord.utils.get(member.guild.roles, name="Guest")
+            
+            if guest_role:
+                await member.add_roles(guest_role)
+                print(f"✅ Auto-role 'Guest' diberikan ke {member.name}")
+            else:
+                print(f"⚠️ Role 'Guest' tidak ditemukan di server {member.guild.name}")
+            
+            # Send welcome message ke #welcome dengan design estetik
+            welcome_channel = discord.utils.get(member.guild.text_channels, name="welcome")
+            if welcome_channel:
+                # Cari channel #open-ticket untuk mention
+                open_ticket_channel = discord.utils.get(member.guild.text_channels, name="open-ticket")
+                # Format channel mention dengan benar
+                if open_ticket_channel:
+                    channel_mention = open_ticket_channel.mention
+                else:
+                    # Jika channel tidak ada, gunakan text biasa tanpa #
+                    channel_mention = "channel **open-ticket**"
+                
+                # Embed estetik dengan gradient color
+                welcome_embed = discord.Embed(
+                    description=f"## 🌟 Welcome to **{member.guild.name}**! 🌟\n\n"
+                                f"Halo {member.mention}! Kami senang kamu bergabung! ✨",
+                    color=0x00D9FF,  # Cyan estetik
+                    timestamp=datetime.now()
+                )
+                
+                # Set thumbnail (avatar member) ukuran kecil di pojok
+                welcome_embed.set_thumbnail(url=member.display_avatar.url)
+                
+                # Author dengan server icon
+                if member.guild.icon:
+                    welcome_embed.set_author(
+                        name=f"{member.guild.name}",
+                        icon_url=member.guild.icon.url
+                    )
+                
+                # Field dengan emoji dan spacing bagus
+                welcome_embed.add_field(
+                    name="🎯 Mulai Petualangan Kamu",
+                    value=f"📌 Buka {channel_mention}\n📋 Buat ticket pembelian\n🎁 Nikmati layanan terbaik!",
+                    inline=False
+                )
+                
+                welcome_embed.add_field(
+                    name="👥 Komunitas",
+                    value=f"```\nKamu adalah member ke-{member.guild.member_count}\n```",
+                    inline=True
+                )
+                
+                welcome_embed.add_field(
+                    name="🎊 Status",
+                    value=f"```\nRole: Guest\n```",
+                    inline=True
+                )
+                
+                # Footer estetik
+                welcome_embed.set_footer(
+                    text=f"Welcome • {member.name}",
+                    icon_url=member.display_avatar.url
+                )
+                
+                await welcome_channel.send(embed=welcome_embed)
+        except Exception as e:
+            print(f"❌ Error di on_member_join: {e}")
+    
+    async def on_member_remove(self, member: discord.Member):
+        """Event ketika ada member keluar/kicked/banned dari server"""
+        try:
+            # Send goodbye message ke #good-bye dengan design estetik
+            goodbye_channel = discord.utils.get(member.guild.text_channels, name="good-bye")
+            if goodbye_channel:
+                # Embed estetik dengan dark elegant color
+                goodbye_embed = discord.Embed(
+                    description=f"## 💫 Farewell, **{member.name}** 💫\n\n"
+                                f"Seseorang telah meninggalkan server...",
+                    color=0xFF6B9D,  # Pink soft estetik
+                    timestamp=datetime.now()
+                )
+                
+                # Set thumbnail (avatar member) ukuran kecil di pojok
+                goodbye_embed.set_thumbnail(url=member.display_avatar.url)
+                
+                # Author dengan server icon
+                if member.guild.icon:
+                    goodbye_embed.set_author(
+                        name=f"{member.guild.name}",
+                        icon_url=member.guild.icon.url
+                    )
+                
+                # Field dengan design menarik
+                goodbye_embed.add_field(
+                    name="👋 Sampai Jumpa",
+                    value=f"```\n💭 {member.name} telah pergi\n💝 Terima kasih atas kebersamaannya\n🌈 Semoga kita bertemu lagi!\n```",
+                    inline=False
+                )
+                
+                goodbye_embed.add_field(
+                    name="📊 Member Tersisa",
+                    value=f"```\n{member.guild.member_count} Members\n```",
+                    inline=True
+                )
+                
+                goodbye_embed.add_field(
+                    name="⏰ Waktu",
+                    value=f"```\n{datetime.now().strftime('%d %b %Y')}\n```",
+                    inline=True
+                )
+                
+                # Footer estetik
+                goodbye_embed.set_footer(
+                    text=f"Goodbye • We'll miss you",
+                    icon_url=member.display_avatar.url
+                )
+                
+                await goodbye_channel.send(embed=goodbye_embed)
+                print(f"👋 Goodbye message sent for {member.name}")
+        except Exception as e:
+            print(f"❌ Error di on_member_remove: {e}")
+
+    async def on_guild_channel_delete(self, channel: discord.TextChannel):
+        """Auto-close ticket ketika channel dihapus manual"""
+        try:
+            # Cek apakah channel ini adalah ticket channel
+            ticket = db.get_ticket_by_channel(channel.id)
+            
+            if ticket and ticket['status'] == 'open':
+                # Auto-close ticket
+                db.close_ticket(ticket['id'], closed_by=0)  # 0 = auto-closed
+                print(f"✅ Auto-closed ticket #{ticket['ticket_number']:04d} (channel deleted: {channel.name})")
+        except Exception as e:
+            print(f"❌ Error in on_guild_channel_delete: {e}")
+    
+    async def on_message(self, message: discord.Message):
+        # Skip DM messages
+        if not message.guild:
+            return
+        
+        # Ignore bot messages untuk processing lainnya
+        if message.author.bot:
+            return
+        
+        # Hanya proses jika ada guild
+        if not message.guild:
+            return
+        
+        # ===== AUTO-DETECT BUKTI TRANSFER DI TICKET CHANNEL =====
+        # Cek apakah ini ticket channel dan ada attachment gambar
+        ticket = db.get_ticket_by_channel(message.channel.id)
+        
+        if ticket and ticket['status'] == 'open' and message.attachments:
+            # Check ticket type
+            is_middleman = ticket.get('ticket_type') == 'middleman'
+            buyer_id = int(ticket['user_id'])
+            seller_id = int(ticket.get('seller_id')) if ticket.get('seller_id') else None
+            
+            # Cek apakah ada attachment gambar
+            for attachment in message.attachments:
+                if attachment.content_type and attachment.content_type.startswith('image/'):
+                    # MIDDLEMAN TICKET: Handle both buyer and seller proof
+                    if is_middleman:
+                        # Buyer uploading proof
+                        if message.author.id == buyer_id:
+                            await self.process_proof_submission(message, ticket, attachment.url, proof_type='buyer')
+                            break
+                        # Seller uploading proof
+                        elif seller_id and message.author.id == seller_id:
+                            await self.process_proof_submission(message, ticket, attachment.url, proof_type='seller')
+                            break
+                    # PURCHASE TICKET: Only buyer proof
+                    else:
+                        if message.author.id == buyer_id:
+                            await self.process_proof_submission(message, ticket, attachment.url)
+                            break
+        
+        # Cek guild config untuk auto-detect channels
+        guild_config = db.get_guild_config(message.guild.id)
+        auto_channels = guild_config.get('auto_detect_channels', [])
+        
+        # Jika auto_channels kosong, aktif di semua channel. Jika ada list, cek channel ini ada di list
+        if auto_channels and str(message.channel.id) not in auto_channels:
+            return
+        
+        # Gunakan regex dari config
+        regex_pattern = guild_config.get('auto_detect_regex', r"transaksi\s*(?:selesai)?[:\s]+([\d\.,]+)")
+        m = re.search(regex_pattern, message.content, re.IGNORECASE)
+        if not m:
+            return
+
+        raw_amount = m.group(1)
+        # Hapus titik/komma non-digit
+        amount_digits = re.sub(r"[^0-9]", "", raw_amount)
+        if not amount_digits:
+            return
+        try:
+            amount = int(amount_digits)
+        except Exception:
+            return
+
+        # Update stats untuk author menggunakan database
+        updated = db.update_user_stats(message.guild.id, message.author.id, amount)
+        db.add_transaction(message.guild.id, message.author.id, amount, category="auto_detect", notes=f"Auto-detected from message", recorded_by=None)
+        
+        # Cek achievement baru
+        new_achievements = db.check_and_unlock_achievement(message.guild.id, message.author.id)
+        
+        # Log activity
+        db.log_action(message.guild.id, message.author.id, "auto_detect_transaction", f"Amount: {amount}")
+
+        # Kirim konfirmasi
+        try:
+            msg = (
+                f"✅ Statistik untuk **{message.author.display_name}** diperbarui: "
+                f"Total Transaksi: **{updated.get('deals_completed',0)}**, "
+                f"Total IDR: **{format_idr(updated.get('total_idr_value',0))}**"
+            )
+            
+            # Tambahkan achievement baru jika ada
+            if new_achievements:
+                achievement_names = {
+                    'deals_10': '🎯 10 Transaksi',
+                    'deals_50': '🔥 50 Transaksi',
+                    'deals_100': '⭐ 100 Transaksi',
+                    'deals_500': '💎 500 Transaksi',
+                    'value_1m': '💰 Rp1 Juta',
+                    'value_5m': '💸 Rp5 Juta',
+                    'value_10m': '🏆 Rp10 Juta',
+                    'value_50m': '👑 Rp50 Juta',
+                }
+                achievement_text = ", ".join([achievement_names.get(a, a) for a in new_achievements])
+                msg += f"\n🎉 **Achievement Baru Unlocked!** {achievement_text}"
+            
+            await message.channel.send(msg)
+        except Exception:
+            pass
+    
+    async def process_proof_submission(self, message: discord.Message, ticket: dict, proof_url: str, proof_type: str = 'buyer'):
+        """Process auto-detected proof submission from image upload
+        
+        Args:
+            message: Discord message object
+            ticket: Ticket dictionary from database
+            proof_url: URL of the uploaded image
+            proof_type: 'buyer' for buyer payment proof, 'seller' for seller delivery proof
+        """
+        try:
+            print(f"\n{'='*60}")
+            print(f"🔍 PROCESSING {proof_type.upper()} PROOF: Ticket #{ticket['ticket_number']:04d}")
+            print(f"{'='*60}")
+            
+            # === SELLER PROOF (Simpler validation) ===
+            if proof_type == 'seller':
+                print("📦 Processing seller delivery proof...")
+                
+                # Run basic fraud detection (no transfer signature needed)
+                legitimate_check = await detect_legitimate_transfer_screenshot(proof_url)
+                manipulation_result = await detect_image_manipulation(proof_url)
+                
+                if manipulation_result['manipulation_detected'] and manipulation_result['confidence'] > 60:
+                    await message.channel.send(
+                        f"{message.author.mention}\n"
+                        "🚨 **GAMBAR MENCURIGAKAN TERDETEKSI!**\n\n"
+                        f"❌ Gambar terdeteksi manipulasi (confidence: {manipulation_result['confidence']:.1f}%)\n\n"
+                        "⚠️ Upload screenshot/bukti ASLI tanpa edit!"
+                    )
+                    await message.add_reaction("❌")
+                    return
+                
+                # Save seller proof
+                db.update_seller_proof(ticket['id'], proof_url)
+                
+                # Send confirmation
+                seller_embed = discord.Embed(
+                    title="📦 Bukti Pengiriman Diterima",
+                    description=f"{message.author.mention} telah upload bukti pengiriman item.",
+                    color=0xFFA500,
+                    timestamp=datetime.now()
+                )
+                
+                seller_embed.add_field(
+                    name="🎫 Ticket ID",
+                    value=f"`#{ticket['ticket_number']:04d}`",
+                    inline=True
+                )
+                
+                seller_embed.add_field(
+                    name="📦 Item",
+                    value=f"`{ticket.get('item_description', 'N/A')}`",
+                    inline=True
+                )
+                
+                seller_embed.add_field(
+                    name="💰 Deal Price",
+                    value=f"**Rp{ticket.get('deal_price', 0):,}**",
+                    inline=True
+                )
+                
+                seller_embed.add_field(
+                    name="🔗 Bukti Seller",
+                    value=f"[📸 Klik untuk melihat]({proof_url})",
+                    inline=False
+                )
+                
+                seller_embed.add_field(
+                    name="⚙️ Next Step",
+                    value="Admin akan verifikasi dan release dana ke seller.\nGunakan `/approve-mm` untuk approve transaksi.",
+                    inline=False
+                )
+                
+                seller_embed.set_footer(
+                    text="⏳ Waiting admin approval | Middleman Transaction",
+                    icon_url=message.guild.icon.url if message.guild.icon else None
+                )
+                
+                # Get admin mentions
+                guild_config = db.get_guild_config(message.guild.id)
+                admin_roles = guild_config.get('admin_roles', [])
+                owner = message.guild.owner
+                
+                admin_mentions = [owner.mention]
+                for role_id in admin_roles:
+                    role = message.guild.get_role(int(role_id))
+                    if role:
+                        admin_mentions.append(role.mention)
+                
+                mention_text = " ".join(admin_mentions)
+                
+                await message.channel.send(
+                    f"🔔 {mention_text}\n\n"
+                    f"📦 **SELLER PROOF RECEIVED!**\n"
+                    f"Ticket #{ticket['ticket_number']:04d} - Seller telah upload bukti pengiriman.\n\n"
+                    f"Silakan verifikasi dan gunakan `/approve-mm` untuk release dana.",
+                    embed=seller_embed
+                )
+                
+                await message.add_reaction("✅")
+                print(f"✅ Seller proof saved successfully")
+                return
+            
+            # === BUYER PROOF (Full 4-Layer Fraud Detection) ===
+            print("💰 Processing buyer payment proof with 4-Layer Fraud Detection...")
+            
+            # === LAYER 1: TRANSFER SIGNATURE CHECK (Account + Date + Amount) ===
+            print("📝 Layer 1: Extracting transfer signature...")
+            transfer_signature = await extract_transfer_signature(proof_url)
+            
+            if transfer_signature:
+                print(f"✅ Transfer signature: {transfer_signature}")
+                # Check exact match by transfer signature
+                exact_duplicate = db.check_duplicate_proof(
+                    guild_id=message.guild.id,
+                    transfer_signature=transfer_signature
+                )
+                
+                if exact_duplicate:
+                    print(f"🚨 LAYER 1 FRAUD DETECTED: Signature match with Ticket #{exact_duplicate['ticket_number']:04d}")
+                    # EXACT SAME TRANSFER DETECTED (same account, date, amount)
+                    duplicate_user = await message.guild.fetch_member(int(exact_duplicate['user_id']))
+                    
+                    await message.channel.send(
+                        f"{message.author.mention}\n"
+                        "🚨 **TRANSFER YANG SAMA TERDETEKSI!**\n\n"
+                        f"❌ Transfer dengan **rekening, tanggal, dan nominal yang sama** sudah digunakan di:\n"
+                        f"• **Ticket:** `#{exact_duplicate['ticket_number']:04d}`\n"
+                        f"• **User:** {duplicate_user.mention if duplicate_user else 'Unknown'}\n"
+                        f"• **Username:** `{exact_duplicate['game_username']}`\n"
+                        f"• **Tanggal:** {exact_duplicate['created_at']}\n"
+                        f"• **Status:** `{exact_duplicate['status']}`\n\n"
+                        "⚠️ **Gunakan screenshot ASLI dari transfer Anda!**\n"
+                        "Setiap transaksi harus menggunakan bukti transfer yang berbeda.\n\n"
+                        f"*(Transfer Signature: {transfer_signature[:30]}...)*"
+                    )
+                    
+                    await message.channel.send(
+                        f"🚨 **FRAUD ALERT:** {message.author.mention} mencoba submit transfer yang sama dengan Ticket #{exact_duplicate['ticket_number']:04d}"
+                    )
+                    return
+                else:
+                    print("✅ No signature duplicates found")
+            else:
+                print("⚠️ Could not extract transfer signature (OCR unavailable or failed)")
+            
+            # === LAYER 1.5: SMART FRAUD DETECTION (Whitelist + Manipulation) ===
+            print("\n🔍 Layer 1.5: Checking screenshot legitimacy...")
+            
+            # STEP 1: Check if screenshot is from known legitimate source
+            legitimate_check = await detect_legitimate_transfer_screenshot(proof_url)
+            
+            if legitimate_check['is_legitimate']:
+                print(f"✅ WHITELISTED: {legitimate_check['source']} (confidence: {legitimate_check['confidence']:.1f}%)")
+                print("   ⏭️  Skipping manipulation detection for legitimate banking app screenshot")
+                # BYPASS manipulation detection - proceed directly to next layer
+            else:
+                # STEP 2: Screenshot source unclear, run manipulation detection
+                print(f"⚠️ Unknown source (confidence: {legitimate_check['confidence']:.1f}%) - running manipulation check...")
+                manipulation_result = await detect_image_manipulation(proof_url)
+                
+                if manipulation_result['manipulation_detected']:
+                    print(f"🚨 LAYER 1.5 FRAUD: Image manipulation detected!")
+                    
+                    # Build warning message
+                    warning_list = "\n".join([f"   {w}" for w in manipulation_result['warnings']])
+                    
+                    await message.channel.send(
+                        f"{message.author.mention}\n"
+                        "🚨 **GAMBAR MENCURIGAKAN TERDETEKSI!**\n\n"
+                        f"❌ Sistem mendeteksi **manipulasi gambar** dengan confidence **{manipulation_result['confidence']:.1f}%**:\n\n"
+                        f"{warning_list}\n\n"
+                        "⚠️ **PERINGATAN:**\n"
+                        "• Screenshot transfer **TIDAK BOLEH** diedit/dicoret\n"
+                        "• Gunakan screenshot **ASLI** dari aplikasi banking/e-wallet\n"
+                        "• **Admin akan REJECT** bukti transfer yang diedit!\n\n"
+                        "💡 **Gunakan screenshot dari:**\n"
+                        "• BCA Mobile, Mandiri Online, BRI Mobile\n"
+                        "• GoPay, OVO, Dana, ShopeePay\n"
+                        "• Bank lainnya (screenshot asli tanpa edit)\n\n"
+                        "Silakan upload ulang bukti transfer yang ASLI."
+                    )
+                    
+                    await message.channel.send(
+                        f"🚨 **MANIPULATION ALERT:** {message.author.mention} upload bukti transfer dengan manipulasi (confidence: {manipulation_result['confidence']:.1f}%)"
+                    )
+                    
+                    # CRITICAL: HARD BLOCK - Stop processing immediately!
+                    # DO NOT save to database, DO NOT send confirmation embed
+                    await message.add_reaction("❌")
+                    print("🚫 Processing stopped due to image manipulation detection")
+                    return  # STOP HERE - No further processing!
+            
+            # === LAYER 2: PERCEPTUAL HASH CHECK (Image Similarity) ===
+            print("\n🎨 Layer 2: Generating perceptual hash...")
+            print(f"   Image URL: {proof_url[:80]}...")
+            proof_hash = await get_image_hash(proof_url)
+            
+            if proof_hash:
+                print(f"   ✅ Hash generated successfully!")
+                print(f"   dhash: {proof_hash['dhash'][:16]}...")
+                print(f"   phash: {proof_hash['phash'][:16]}...")
+                print(f"   ahash: {proof_hash['ahash'][:16]}...")
+                print(f"   combined: {proof_hash['combined'][:50]}...")
+                
+                # CRITICAL FIX: Save hash FIRST before checking (so we have data to compare)
+                print(f"💾 Saving hashes to database...")
+                print(f"   Ticket ID: {ticket['id']}")
+                print(f"   Transfer signature: {transfer_signature[:30] if transfer_signature else 'None'}...")
+                db.save_proof_hash(ticket['id'], proof_hash['combined'], transfer_signature)
+                print("✅ Hashes saved successfully")
+                
+                # Now check similarity (will compare with OTHER tickets, excluding current one)
+                print(f"\n🔍 Multi-algorithm similarity check...")
+                print(f"   Current ticket ID to EXCLUDE: {ticket['id']}")
+                duplicate = await check_similar_images(
+                    message.guild.id, 
+                    proof_hash,
+                    current_ticket_id=ticket['id']
+                )
+                print(f"   Duplicate result: {duplicate}")
+                
+                if duplicate:
+                    # Check if this is SAME ticket (user trying to upload same image again)
+                    if duplicate.get('is_same_ticket'):
+                        print(f"🚨 LAYER 2 FRAUD: User trying to upload SAME image to SAME ticket!")
+                        await message.channel.send(
+                            f"{message.author.mention}\n"
+                            "🚨 **GAMBAR SAMA TERDETEKSI!**\n\n"
+                            f"❌ Anda **sudah upload gambar ini** ke ticket ini sebelumnya!\n"
+                            f"• **Similarity:** {duplicate['similarity']}\n\n"
+                            "⚠️ **Tidak boleh upload gambar yang sama 2x!**\n"
+                            "Jika ingin ganti bukti transfer, upload **screenshot yang BERBEDA**.\n\n"
+                            f"*(Detected via {duplicate['algorithm']} | {duplicate['all_distances']})*"
+                        )
+                        await message.add_reaction("❌")
     # Buat channel create-ticket-mm
     try:
         # Cari kategori "TICKET MIDDLEMAN" atau buat baru
@@ -4104,11 +4345,31 @@ async def set_admin(interaction: discord.Interaction, role: discord.Role):
             ephemeral=True
         )
         
+        # Log action
         db.log_action(
             guild_id=interaction.guild.id,
             user_id=interaction.user.id,
             action="set_admin_role",
             details=f"Added admin role: {role.name} ({role.id})"
+        )
+        
+        # Kirim DM ke user (opsional)
+        try:
+            dm_embed = discord.Embed(
+                title="🎉 Role Baru!",
+                description=f"Kamu mendapat role **{role.name}** di server **{interaction.guild.name}**!",
+                color=role.color,
+                timestamp=datetime.now()
+            )
+            dm_embed.set_footer(text=f"Diberikan oleh {interaction.user.display_name}")
+            await role.send(embed=dm_embed)
+        except:
+            pass  # Ignore jika DM gagal
+            
+    except discord.Forbidden:
+        await interaction.followup.send(
+            "❌ Bot tidak punya permission untuk manage roles!",
+            ephemeral=True
         )
     except Exception as e:
         await interaction.followup.send(f"❌ Error: {e}", ephemeral=True)
@@ -4145,11 +4406,18 @@ async def remove_admin(interaction: discord.Interaction, role: discord.Role):
             ephemeral=True
         )
         
+        # Log action
         db.log_action(
             guild_id=interaction.guild.id,
             user_id=interaction.user.id,
             action="remove_admin_role",
             details=f"Removed admin role: {role.name} ({role.id})"
+        )
+            
+    except discord.Forbidden:
+        await interaction.followup.send(
+            "❌ Bot tidak punya permission untuk manage roles!",
+            ephemeral=True
         )
     except Exception as e:
         await interaction.followup.send(f"❌ Error: {e}", ephemeral=True)
@@ -4221,12 +4489,14 @@ async def list_admins(interaction: discord.Interaction):
                 "• `/reset-tickets` - Reset semua ticket\n"
                 "• `/broadcast` - Broadcast message\n"
                 "• `/clear` - Hapus banyak pesan\n"
+                "• `/backup` - Buat backup data\n"
+                "• `/rollback` - Restore dari backup\n"
                 "• **Full Access** ke semua command"
             ),
             inline=False
         )
         
-        embed.set_footer(text="⚠️ Admin role dibatasi untuk keamanan • Hanya Owner full access")
+        embed.set_footer(text=f"User: {interaction.user.display_name}")
         
         await interaction.followup.send(embed=embed, ephemeral=True)
     except Exception as e:
@@ -4330,8 +4600,6 @@ async def permissions(interaction: discord.Interaction):
         await interaction.followup.send(f"❌ Error: {e}", ephemeral=True)
 
 
-
-
 # --- Slash Command: /user-info ---
 @client.tree.command(
     name="user-info",
@@ -4388,7 +4656,7 @@ async def user_info(interaction: discord.Interaction, user: discord.Member):
                 }
                 ach_list = [f"{ach_icons.get(a['achievement_type'], '🏅')} {a['achievement_type']}" 
                            for a in achievements]
-                
+            
                 embed.add_field(
                     name=f"🏆 Achievements ({len(achievements)})",
                     value="\n".join(ach_list[:5]),
@@ -4745,10 +5013,7 @@ async def add_item_to_catalog(interaction: discord.Interaction, name: str, robux
             if channel:
                 message = await channel.fetch_message(setup_data['message_id'])
                 
-                # Get all items
-                items = db.get_all_items(interaction.guild.id)
-                
-                # Recreate embed
+                # Recreate embed dengan harga baru
                 instruction_embed = discord.Embed(
                     title="🎫 Open Ticket - Panduan",
                     description=f"Selamat datang! Gift Fish-It Roblox dengan rate **Rp{rate}/Robux**",
@@ -4762,11 +5027,21 @@ async def add_item_to_catalog(interaction: discord.Interaction, name: str, robux
                         "**1.** Klik tombol **Create Ticket** di bawah\n\n"
                         "**2.** Input username game Anda (min 3 karakter)\n"
                         "**Contoh:** `AbuyyXZ777`\n\n"
-                        "**3.** Bot akan create private ticket channel\n\n"
-                        "**4.** Lihat list item & harga di ticket channel\n\n"
-                        "**5.** Gunakan `/add` untuk order item\n\n"
-                        "**6.** Upload bukti pembayaran (auto-detect)"
+                        "**3.** Bot akan otomatis create private ticket channel untuk Anda\n\n"
+                        "**4.** Masuk ke ticket channel dan gunakan `/add` untuk order item\n\n"
+                        "**5.** Setelah order selesai, transfer dan `/submit` bukti transfer"
                     ),
+                    inline=False
+                )
+                
+                # Build item list from database
+                items_text = []
+                for item in items:
+                    items_text.append(f"**{item['name']}:** {item['robux']} R$ • {format_idr(item['price_idr'])}")
+                
+                instruction_embed.add_field(
+                    name=f"💎 Item & Harga (Rate: Rp{rate}/Robux)",
+                    value="\n".join(items_text),
                     inline=False
                 )
                 
@@ -4789,6 +5064,7 @@ async def add_item_to_catalog(interaction: discord.Interaction, name: str, robux
                 
                 instruction_embed.set_footer(text="🎮 Fish-It Roblox Gift Service • Trusted Seller")
                 
+                # Update message
                 await message.edit(embed=instruction_embed)
                 
                 await interaction.followup.send(
@@ -4796,8 +5072,7 @@ async def add_item_to_catalog(interaction: discord.Interaction, name: str, robux
                     f"**Kode:** `{code}`\n"
                     f"**Nama:** {name}\n"
                     f"**Harga:** {robux} R$ • {format_idr(price_idr)}\n\n"
-                    f"📌 Display di #open-ticket sudah auto-update!\n"
-                    f"💡 Total item sekarang: {len(items)}",
+                    f"📌 Display di #open-ticket sudah auto-update!",
                     ephemeral=True
                 )
         except Exception as e:
@@ -4864,9 +5139,8 @@ async def remove_item_from_catalog(interaction: discord.Interaction, item: str):
             if channel:
                 message = await channel.fetch_message(setup_data['message_id'])
                 
-                # Get remaining items
+                # Get all items
                 items = db.get_all_items(interaction.guild.id)
-                rate = db.get_robux_rate(interaction.guild.id)
                 
                 # Recreate embed
                 instruction_embed = discord.Embed(
@@ -4882,11 +5156,21 @@ async def remove_item_from_catalog(interaction: discord.Interaction, item: str):
                         "**1.** Klik tombol **Create Ticket** di bawah\n\n"
                         "**2.** Input username game Anda (min 3 karakter)\n"
                         "**Contoh:** `AbuyyXZ777`\n\n"
-                        "**3.** Bot akan create private ticket channel\n\n"
-                        "**4.** Lihat list item & harga di ticket channel\n\n"
-                        "**5.** Gunakan `/add` untuk order item\n\n"
-                        "**6.** Upload bukti pembayaran (auto-detect)"
+                        "**3.** Bot akan otomatis create private ticket channel untuk Anda\n\n"
+                        "**4.** Masuk ke ticket channel dan gunakan `/add` untuk order item\n\n"
+                        "**5.** Setelah order selesai, transfer dan `/submit` bukti transfer"
                     ),
+                    inline=False
+                )
+                
+                # Build item list from database
+                items_text = []
+                for item in items:
+                    items_text.append(f"**{item['name']}:** {item['robux']} R$ • {format_idr(item['price_idr'])}")
+                
+                instruction_embed.add_field(
+                    name=f"💎 Item & Harga (Rate: Rp{rate}/Robux)",
+                    value="\n".join(items_text),
                     inline=False
                 )
                 
@@ -4915,8 +5199,7 @@ async def remove_item_from_catalog(interaction: discord.Interaction, item: str):
                     f"✅ **Item berhasil dihapus!**\n\n"
                     f"**Nama:** {item_data['name']}\n"
                     f"**Harga:** {item_data['robux']} R$ • {format_idr(item_data['price_idr'])}\n\n"
-                    f"📌 Display di #open-ticket sudah auto-update!\n"
-                    f"💡 Total item sekarang: {len(items)}",
+                    f"📌 Display di #open-ticket sudah auto-update!",
                     ephemeral=True
                 )
         except Exception as e:
@@ -4966,6 +5249,283 @@ async def remove_item_autocomplete(
     except Exception as e:
         print(f"Error in autocomplete: {e}")
         return []
+
+
+class PaymentValidationView(discord.ui.View):
+    """Simple checklist to force manual validation before closing a purchase ticket."""
+
+    def __init__(self):
+        super().__init__(timeout=180)
+        self.checks = {
+            "account": False,
+            "timestamp": False,
+            "amount": False,
+            "screenshot": False,
+        }
+        self.confirmed = False
+
+    async def _toggle(self, interaction: discord.Interaction, button: discord.ui.Button, key: str, label: str):
+        self.checks[key] = not self.checks[key]
+        prefix = "✅" if self.checks[key] else "◻️"
+        button.label = f"{prefix} {label}"
+        button.style = discord.ButtonStyle.success if self.checks[key] else discord.ButtonStyle.secondary
+        await interaction.response.edit_message(view=self)
+
+    @discord.ui.button(label="◻️ Nomor rekening cocok", style=discord.ButtonStyle.secondary, custom_id="pv_check_account")
+    async def check_account(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self._toggle(interaction, button, "account", "Nomor rekening cocok")
+
+    @discord.ui.button(label="◻️ Timestamp transfer wajar", style=discord.ButtonStyle.secondary, custom_id="pv_check_time")
+    async def check_time(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self._toggle(interaction, button, "timestamp", "Timestamp transfer wajar")
+
+    @discord.ui.button(label="◻️ Nominal sesuai", style=discord.ButtonStyle.secondary, custom_id="pv_check_amount")
+    async def check_amount(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self._toggle(interaction, button, "amount", "Nominal sesuai")
+
+    @discord.ui.button(label="◻️ Screenshot asli", style=discord.ButtonStyle.secondary, custom_id="pv_check_screenshot")
+    async def check_screenshot(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self._toggle(interaction, button, "screenshot", "Screenshot asli")
+
+    @discord.ui.button(label="Approve sekarang", style=discord.ButtonStyle.primary, row=1, custom_id="pv_confirm")
+    async def confirm(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not all(self.checks.values()):
+            await interaction.response.send_message(
+                "⚠️ Checklist belum lengkap. Centang semua poin sebelum approve!",
+                ephemeral=True
+            )
+            return
+        self.confirmed = True
+        await interaction.response.defer()
+        self.stop()
+
+    @discord.ui.button(label="Batalkan", style=discord.ButtonStyle.secondary, row=1, custom_id="pv_cancel")
+    async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.confirmed = False
+        await interaction.response.defer()
+        self.stop()
+
+
+async def handle_purchase_ticket_approval(interaction: discord.Interaction, invoked_from: str):
+    try:
+        ticket = db.get_ticket_by_channel(interaction.channel.id)
+
+        if not ticket:
+            await interaction.response.send_message(
+                "❌ Command ini hanya bisa digunakan di ticket channel.",
+                ephemeral=True
+            )
+            return
+
+        if ticket.get('ticket_type') == 'middleman':
+            await interaction.response.send_message(
+                "❌ Ini ticket middleman. Gunakan `/approve-mm` untuk transaksi middleman.",
+                ephemeral=True
+            )
+            return
+
+        if ticket['status'] != 'open':
+            await interaction.response.send_message(
+                "❌ Ticket ini sudah ditutup.",
+                ephemeral=True
+            )
+            return
+
+        items = db.get_ticket_items(ticket['id'])
+        if not items:
+            await interaction.response.send_message(
+                "❌ Ticket ini belum memiliki item. Gunakan `/add` terlebih dahulu.",
+                ephemeral=True
+            )
+            return
+
+        grand_total = sum(item['amount'] for item in items)
+
+        await interaction.response.defer(ephemeral=True)
+
+        checklist_view = PaymentValidationView()
+        checklist_embed = discord.Embed(
+            title="Verifikasi Bukti Transfer",
+            description=(
+                f"Ticket #{ticket['ticket_number']:04d}\n"
+                f"Total yang harus diterima: **{format_idr(grand_total)}**\n\n"
+                "Centang seluruh checklist anti-fraud sebelum approve."
+            ),
+            color=0xF1C40F,
+        )
+        checklist_embed.add_field(
+            name="Checklist",
+            value=(
+                "◻️ Nomor rekening tujuan sesuai\n"
+                "◻️ Timestamp transfer masih relevan\n"
+                "◻️ Nominal sama dengan total order\n"
+                "◻️ Screenshot asli tanpa edit"
+            ),
+            inline=False,
+        )
+
+        checklist_message = await interaction.followup.send(
+            embed=checklist_embed,
+            view=checklist_view,
+            ephemeral=True,
+        )
+
+        await checklist_view.wait()
+
+        await checklist_message.edit(view=None)
+
+        if not checklist_view.confirmed:
+            await checklist_message.edit(
+                content="❌ Approval dibatalkan atau timeout. Jalankan command lagi jika masih ingin approve.",
+                embed=None,
+            )
+            return
+
+        await checklist_message.edit(
+            content="✅ Checklist lengkap. Memproses ticket...",
+            embed=None,
+        )
+
+        buyer_member = interaction.guild.get_member(int(ticket['user_id']))
+        buyer_mention = buyer_member.mention if buyer_member else f"<@{ticket['user_id']}>"
+        buyer_username = ticket.get('game_username') or 'Unknown'
+
+        # Update stats & transaksi
+        for item in items:
+            db.update_user_stats(ticket['guild_id'], int(ticket['user_id']), item['amount'])
+            db.add_transaction(
+                guild_id=interaction.guild.id,
+                user_id=int(ticket['user_id']),
+                amount=item['amount'],
+                category="ticket_order",
+                notes=f"{item['item_name']} - {format_idr(item['amount'])} (Ticket #{ticket['ticket_number']:04d})",
+                recorded_by=interaction.user.id,
+            )
+
+        new_achievements = db.check_and_unlock_achievement(int(ticket['guild_id']), int(ticket['user_id']))
+
+        db.close_ticket(ticket['id'], interaction.user.id, approved_by=interaction.user.id)
+
+        items_list = "\n".join(
+            f"• {item['item_name']} — {format_idr(item['amount'])}" for item in items
+        )
+
+        summary_embed = discord.Embed(
+            title="✅ Transaksi Selesai",
+            description=(
+                f"Ticket #{ticket['ticket_number']:04d} disetujui oleh {interaction.user.mention}.\n"
+                f"Buyer: {buyer_mention} (`{buyer_username}`)"
+            ),
+            color=0x2ECC71,
+            timestamp=datetime.now(),
+        )
+        summary_embed.add_field(
+            name="Total Pembayaran",
+            value=f"**{format_idr(grand_total)}**",
+            inline=True,
+        )
+        summary_embed.add_field(
+            name="Jumlah Item",
+            value=f"{len(items)} item",
+            inline=True,
+        )
+        summary_embed.add_field(
+            name="Detail Order",
+            value=items_list,
+            inline=False,
+        )
+
+        vouch_channel = discord.utils.get(interaction.guild.text_channels, name="vouch")
+        if vouch_channel:
+            summary_embed.add_field(
+                name="Testimoni",
+                value=f"Bagikan pengalamanmu di {vouch_channel.mention}.",
+                inline=False,
+            )
+
+        if new_achievements:
+            achievement_names = {
+                'deals_10': '🎯 10 Transaksi',
+                'deals_50': '🔥 50 Transaksi',
+                'deals_100': '⭐ 100 Transaksi',
+                'deals_500': '💎 500 Transaksi',
+                'value_1m': '💰 Rp1 Juta',
+                'value_5m': '💸 Rp5 Juta',
+                'value_10m': '🏆 Rp10 Juta',
+                'value_50m': '👑 Rp50 Juta',
+            }
+            unlocked_list = []
+            for achievement in new_achievements:
+                if isinstance(achievement, dict):
+                    ach_type = achievement.get('achievement_type')
+                    unlocked_list.append(achievement_names.get(ach_type, ach_type or 'Achievement'))
+                else:
+                    unlocked_list.append(achievement_names.get(achievement, achievement))
+
+            summary_embed.add_field(
+                name="Achievement Baru",
+                value=", ".join(unlocked_list),
+                inline=False,
+            )
+
+        summary_embed.set_footer(text="Channel akan dihapus otomatis dalam 20 detik.")
+
+        await interaction.channel.send(embed=summary_embed)
+
+        legacy_suffix = ""
+        if invoked_from == "/approve-ticket":
+            legacy_suffix = "\nℹ️ Gunakan `/done` untuk command terbaru. Alias `/approve-ticket` akan dihapus setelah semua user migrasi."
+
+        await checklist_message.edit(
+            content=(
+                f"✅ Ticket #{ticket['ticket_number']:04d} selesai. Total {format_idr(grand_total)}."
+                f"{legacy_suffix}"
+            ),
+            embed=None,
+        )
+
+        db.log_action(
+            guild_id=interaction.guild.id,
+            user_id=interaction.user.id,
+            action="approve_purchase_ticket",
+            details=f"Ticket #{ticket['ticket_number']:04d} — Total {format_idr(grand_total)}",
+        )
+
+        async def delete_later(channel: discord.TextChannel):
+            await asyncio.sleep(20)
+            try:
+                await channel.delete(reason=f"Ticket approved by {interaction.user.name}")
+            except Exception as exc:
+                print(f"❌ Error deleting ticket channel: {exc}")
+
+        asyncio.create_task(delete_later(interaction.channel))
+
+    except Exception as e:
+        print(f"❌ Error approving ticket: {e}")
+        if interaction.response.is_done():
+            await interaction.followup.send(f"❌ Gagal approve ticket: {e}", ephemeral=True)
+        else:
+            await interaction.response.send_message(f"❌ Gagal approve ticket: {e}", ephemeral=True)
+
+
+# --- Slash Command: /done ---
+@client.tree.command(
+    name="done",
+    description="[ADMIN] Approve ticket purchase setelah bukti transfer valid",
+)
+@admin_or_owner()
+async def done(interaction: discord.Interaction):
+    await handle_purchase_ticket_approval(interaction, invoked_from="/done")
+
+
+# --- Slash Command: /approve-ticket (legacy alias) ---
+@client.tree.command(
+    name="approve-ticket",
+    description="[LEGACY] Alias untuk `/done` sebelum command lama dihapus",
+)
+@admin_or_owner()
+async def approve_ticket(interaction: discord.Interaction):
+    await handle_purchase_ticket_approval(interaction, invoked_from="/approve-ticket")
 
 
 # --- Slash Command: /daily-leaderboard ---
@@ -5077,9 +5637,6 @@ async def daily_leaderboard(interaction: discord.Interaction):
             f"❌ **Error:**\n```{str(e)[:200]}```",
             ephemeral=True
         )
-        print(f"❌ Error in /daily-leaderboard: {e}")
-        import traceback
-        traceback.print_exc()
 
 
 # --- Slash Command: /approve-mm ---
@@ -5137,16 +5694,21 @@ async def approve_mm(interaction: discord.Interaction):
         # Close ticket
         db.close_ticket(ticket['id'], interaction.user.id)
         
-        # Update stats untuk buyer (bukan seller, karena seller dapat dari middleman)
-        db.update_user_stats(interaction.guild.id, int(buyer_id), deal_price)
-        db.add_transaction(
-            guild_id=interaction.guild.id,
-            user_id=int(buyer_id),
-            amount=deal_price,
-            category="middleman_buyer",
-            notes=f"Middleman ticket #{ticket['ticket_number']:04d} - {ticket.get('item_description', 'Item')}",
-            recorded_by=interaction.user.id
-        )
+        # Update user stats untuk setiap item
+        items = db.get_ticket_items(ticket['id'])
+        for item in items:
+            db.update_user_stats(ticket['guild_id'], int(ticket['user_id']), item['amount'])
+            db.add_transaction(
+                guild_id=interaction.guild.id,
+                user_id=int(ticket['user_id']),
+                amount=item['amount'],
+                category="ticket_order",
+                notes=f"{item['item_name']} - {format_idr(item['amount'])} (Ticket #{ticket['ticket_number']:04d})",
+                recorded_by=interaction.user.id
+            )
+        
+        # Check achievements
+        new_achievements = db.check_and_unlock_achievement(int(ticket['guild_id']), int(ticket['user_id']))
         
         # Send completion message
         completion_embed = discord.Embed(
@@ -5204,8 +5766,7 @@ async def approve_mm(interaction: discord.Interaction):
         await interaction.channel.send(embed=completion_embed)
         
         await interaction.followup.send(
-            f"✅ **Middleman transaksi berhasil diapprove!**\n\n"
-            f"📌 Ticket #{ticket['ticket_number']:04d} ditutup\n"
+            f"✅ Middleman ticket #{ticket['ticket_number']:04d} berhasil diapprove!\n"
             f"💰 Seller payout: **Rp{seller_payout:,}**\n"
             f"💵 Fee middleman: **Rp{mm_fee:,}**\n\n"
             f"⚠️ **JANGAN LUPA:** Transfer Rp{seller_payout:,} ke seller `{seller_username}`!",
@@ -5224,9 +5785,9 @@ async def approve_mm(interaction: discord.Interaction):
         await asyncio.sleep(30)
         try:
             await interaction.channel.delete()
-        except:
-            pass
-            
+        except Exception as e:
+            print(f"❌ Error deleting channel: {e}")
+    
     except Exception as e:
         await interaction.followup.send(f"❌ Error: {e}", ephemeral=True)
 
@@ -5313,33 +5874,197 @@ async def reject_mm(interaction: discord.Interaction, reason: str = "Bukti tidak
         await interaction.followup.send(f"❌ Error: {e}", ephemeral=True)
 
 
-# --- Jalankan Bot ---
-if __name__ == '__main__':
-    keep_alive()
-
-    @client.event
-    async def on_ready():
-        try:
-            await send_log_message(client, f"✅ Bot berhasil di-restart dan online! (PID: {os.getpid()})")
-        except Exception:
-            pass
-
+# --- Slash Command: /close ---
+@client.tree.command(
+    name="close",
+    description="Tutup ticket Anda (buyer atau admin)."
+)
+async def close_ticket(interaction: discord.Interaction):
     try:
-        client.run(TOKEN)
-    except discord.LoginFailure:
-        print("❌ ERROR: Token bot tidak valid. Cek kembali token di file .env.")
+        await interaction.response.defer()
+        
+        ticket = db.get_ticket_by_channel(interaction.channel.id)
+        
+        if not ticket:
+            await interaction.followup.send("❌ Command ini hanya bisa digunakan di ticket channel.", ephemeral=True)
+            return
+        
+        if ticket['status'] != 'open':
+            await interaction.followup.send("❌ Ticket ini sudah ditutup.", ephemeral=True)
+            return
+        
+        # Check permission
+        if int(ticket['user_id']) != interaction.user.id and not interaction.user.guild_permissions.administrator:
+            await interaction.followup.send("❌ Hanya owner ticket atau admin yang bisa close ticket.", ephemeral=True)
+            return
+        
+        db.close_ticket(ticket['id'], interaction.user.id)
+        
+        close_embed = discord.Embed(
+            title="🔒 Ticket Ditutup",
+            description=f"Ticket telah ditutup oleh {interaction.user.mention}",
+            color=0xE67E22,  # Elegant orange
+            timestamp=datetime.now()
+        )
+        
+        close_embed.add_field(name="💬 Catatan", value="Terima kasih telah menggunakan layanan kami.", inline=False)
+        close_embed.set_footer(text="🕑 Channel akan dihapus dalam 10 detik", icon_url=interaction.guild.icon.url if interaction.guild.icon else None)
+        
+        await interaction.followup.send("✅ Ticket ditutup. Channel akan dihapus dalam 10 detik.")
+        await interaction.channel.send(embed=close_embed)
+        
+        # Delete channel after 10 seconds
+        import asyncio
+        await asyncio.sleep(10)
         try:
-            import asyncio
-            asyncio.run(send_log_message(client, "❌ ERROR: Token bot tidak valid. Cek kembali token di file .env."))
-        except Exception:
-            pass
+            await interaction.channel.delete(reason=f"Ticket closed by {interaction.user.name}")
+        except Exception as e:
+            print(f"❌ Error deleting channel: {e}")
+    
     except Exception as e:
-        import traceback
-        error_text = f"❌ ERROR: Terjadi kesalahan saat menjalankan bot: {e}\n{traceback.format_exc()}"
-        print(error_text)
+        print(f"❌ Error in close_ticket: {e}")
         try:
-            import asyncio
-            asyncio.run(send_log_message(client, error_text))
-        except Exception:
+            await interaction.followup.send(f"❌ Error: {e}", ephemeral=True)
+        except:
             pass
 
+
+# --- Slash Command: /setup-ticket ---
+@client.tree.command(
+    name="setup-ticket",
+    description="[OWNER] Setup channel open-ticket untuk buyer."
+)
+@owner_only()
+async def setup_ticket_channel(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=True)
+    
+    # Cek apakah channel sudah ada
+    existing_channel = discord.utils.get(interaction.guild.text_channels, name="open-ticket")
+    
+    if existing_channel:
+        await interaction.followup.send(
+            f"✅ Channel {existing_channel.mention} sudah ada.\n"
+            f"Buyer bisa langsung ketik username game mereka di channel tersebut untuk buka ticket.",
+            ephemeral=True
+        )
+        return
+    
+    # Buat channel open-ticket
+    try:
+        # Cari kategori "TICKETS" (case-insensitive)
+        tickets_category = None
+        for category in interaction.guild.categories:
+            if category.name.upper() == "TICKETS":
+                tickets_category = category
+                break
+        
+        # Create channel dengan permission @everyone bisa read & send
+        overwrites = {
+            interaction.guild.default_role: discord.PermissionOverwrite(
+                read_messages=True,
+                send_messages=True,
+                add_reactions=True,
+                attach_files=True
+            ),
+            interaction.guild.me: discord.PermissionOverwrite(
+                read_messages=True,
+                send_messages=True,
+                manage_messages=True
+            )
+        }
+        
+        channel = await interaction.guild.create_text_channel(
+            name="open-ticket",
+            overwrites=overwrites,
+            category=tickets_category,  # Masukkan ke kategori TICKETS jika ada
+            topic="📝 Ketik username game Anda di sini untuk membuka ticket order"
+        )
+        
+        # Kirim instruksi di channel
+        # Initialize items if not exists
+        items = db.get_all_items(interaction.guild.id)
+        if not items:
+            db.init_default_items(interaction.guild.id)
+            items = db.get_all_items(interaction.guild.id)
+        
+        rate = db.get_robux_rate(interaction.guild.id)
+        
+        instruction_embed = discord.Embed(
+            title="🎫 Open Ticket - Panduan",
+            description=f"Selamat datang! Gift Fish-It Roblox dengan rate **Rp{rate}/Robux**",
+            color=discord.Color.blue(),
+            timestamp=datetime.now()
+        )
+        
+        instruction_embed.add_field(
+            name="📝 Cara Buka Ticket",
+            value=(
+                "**1.** Klik tombol **Create Ticket** di bawah\n\n"
+                "**2.** Input username game Anda (min 3 karakter)\n"
+                "**Contoh:** `AbuyyXZ777`\n\n"
+                "**3.** Bot akan otomatis create private ticket channel untuk Anda\n\n"
+                "**4.** Masuk ke ticket channel dan gunakan `/add` untuk order item\n\n"
+                "**5.** Setelah order selesai, transfer dan `/submit` bukti transfer"
+            ),
+            inline=False
+        )
+        
+        instruction_embed.add_field(
+            name="💳 Pembayaran",
+            value="Admin akan berikan **QRIS** di ticket Anda",
+            inline=False
+        )
+        
+        instruction_embed.add_field(
+            name="⚡ Penting",
+            value=(
+                "• 1 user hanya bisa punya 1 ticket aktif\n"
+                "• Upload bukti transfer ASLI (tidak boleh edit)\n"
+                "• Button akan tetap ada meski bot restart\n"
+                "• Gunakan `/add` di ticket untuk order"
+            ),
+            inline=False
+        )
+        
+        instruction_embed.set_footer(text="🎮 Fish-It Roblox Gift Service • Trusted Seller")
+        
+        # Send embed with button
+        view = CreateTicketButton()
+        message = await channel.send(embed=instruction_embed, view=view)
+        
+        # Save message ID to database
+        db.set_ticket_setup_message(interaction.guild.id, channel.id, message.id, "rate_system")
+        
+        # Konfirmasi ke admin
+        await interaction.followup.send(
+            f"✅ Channel {channel.mention} berhasil dibuat di kategori **{tickets_category.name}**!\n\n"
+            f"**Setup selesai!** Buyer sekarang bisa:\n"
+            f"1. Masuk ke {channel.mention}\n"
+            f"2. Klik tombol **Create Ticket**\n"
+            f"3. Input username game mereka\n"
+            f"4. Bot akan auto-create ticket private channel\n\n"
+            f"**Note:** Pastikan bot punya permission `Manage Channels` dan `Manage Messages`.\n"
+            f"Button akan tetap ada meskipun bot restart (persistent button).",
+            ephemeral=True
+        )
+        
+        # Log action
+        db.log_action(
+            guild_id=interaction.guild.id,
+            user_id=interaction.user.id,
+            action="setup_ticket_channel",
+            details=f"Created #open-ticket channel: {channel.id}"
+        )
+        
+    except discord.Forbidden:
+        await interaction.followup.send(
+            "❌ Bot tidak punya permission untuk membuat channel.\n"
+            "Enable `Manage Channels` permission untuk bot role.",
+            ephemeral=True
+        )
+    except Exception as e:
+        await interaction.followup.send(f"❌ Error: {e}", ephemeral=True)
+
+
+# --- Slash Command: /setup-mm ---
+@client
