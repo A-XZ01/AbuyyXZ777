@@ -4131,115 +4131,6 @@ class MyClient(discord.Client):
                             f"*(Detected via {duplicate['algorithm']} | {duplicate['all_distances']})*"
                         )
                         await message.add_reaction("❌")
-    # Buat channel create-ticket-mm
-    try:
-        # Cari kategori "TICKET MIDDLEMAN" atau buat baru
-        mm_category = discord.utils.get(interaction.guild.categories, name="TICKET MIDDLEMAN")
-        if not mm_category:
-            mm_category = await interaction.guild.create_category(name="TICKET MIDDLEMAN")
-        
-        # Create channel
-        overwrites = {
-            interaction.guild.default_role: discord.PermissionOverwrite(
-                read_messages=True,
-                send_messages=False,  # User tidak bisa kirim message, hanya klik button
-                add_reactions=False,
-                attach_files=False
-            ),
-            interaction.guild.me: discord.PermissionOverwrite(
-                read_messages=True,
-                send_messages=True,
-                manage_messages=True
-            )
-        }
-        
-        channel = await interaction.guild.create_text_channel(
-            name="create-ticket-mm",
-            overwrites=overwrites,
-            category=mm_category,
-            topic="🤝 Klik button untuk membuka middleman ticket"
-        )
-        
-        # Kirim instruksi di channel
-        instruction_embed = discord.Embed(
-            title="🤝 Middleman Service - Panduan",
-            description="Layanan Middleman untuk transaksi aman antara buyer & seller.",
-            color=0xFF9900,  # Orange
-            timestamp=datetime.now()
-        )
-        
-        instruction_embed.add_field(
-            name="📝 Cara Pakai",
-            value=(
-                "**1.** Klik **Create Middleman Ticket**\n"
-                "**2.** Isi data: Buyer, Seller, Item, Harga\n"
-                "**3.** Buyer transfer → Seller kirim item → Admin release dana"
-            ),
-            inline=False
-        )
-        
-        instruction_embed.add_field(
-            name="💰 Fee Middleman",
-            value=(
-                "```\n"
-                "< Rp50K      : GRATIS\n"
-                "Rp50K-500K   : Rp2.000\n"
-                "Rp500K-1Jt   : Rp5.000\n"
-                "Rp1Jt-5Jt    : Rp7.000\n"
-                "Rp5Jt-10Jt   : Rp10.000\n"
-                "Rp10Jt+      : Rp15.000\n"
-                "```"
-            ),
-            inline=False
-        )
-        
-        instruction_embed.add_field(
-            name="✅ Keuntungan",
-            value=(
-                "🛡️ **Aman** - Dana ditahan sampai item diterima\n"
-                "⚡ **Anti-Fraud** - Auto-reject bukti palsu\n"
-                "💸 **Murah** - Gratis untuk transaksi <50K"
-            ),
-            inline=False
-        )
-        
-        instruction_embed.set_footer(text="Klik tombol untuk mulai • Trusted Service")
-        
-        # Send embed with button
-        view = CreateMiddlemanButton()
-        message = await channel.send(embed=instruction_embed, view=view)
-        
-        # Konfirmasi ke admin
-        await interaction.followup.send(
-            f"✅ Channel {channel.mention} berhasil dibuat di kategori **{mm_category.name}**!\n\n"
-            f"**Setup selesai!** User sekarang bisa:\n"
-            f"1. Masuk ke {channel.mention}\n"
-            f"2. Klik tombol **Create Middleman Ticket**\n"
-            f"3. Isi form transaksi\n"
-            f"4. Bot akan auto-create middleman ticket channel\n\n"
-            f"**Note:** Pastikan bot punya permission `Manage Channels` dan `Manage Messages`.\n"
-            f"Button akan tetap ada meskipun bot restart (persistent button).",
-            ephemeral=True
-        )
-        
-        # Log action
-        db.log_action(
-            guild_id=interaction.guild.id,
-            user_id=interaction.user.id,
-            action="setup_mm_channel",
-            details=f"Created #create-ticket-mm channel: {channel.id}"
-        )
-        
-    except discord.Forbidden:
-        await interaction.followup.send(
-            "❌ Bot tidak punya permission untuk membuat channel.\n"
-            "Enable `Manage Channels` permission untuk bot role.",
-            ephemeral=True
-        )
-    except Exception as e:
-        await interaction.followup.send(f"❌ Error: {e}", ephemeral=True)
-
-
 # --- Slash Command: /clear ---
 @client.tree.command(
     name="clear",
@@ -6067,4 +5958,106 @@ async def setup_ticket_channel(interaction: discord.Interaction):
 
 
 # --- Slash Command: /setup-mm ---
-@client
+@client.tree.command(
+    name="setup-mm",
+    description="[OWNER] Setup channel create-ticket-mm untuk layanan middleman."
+)
+@owner_only()
+async def setup_mm_channel(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=True)
+
+    existing_channel = discord.utils.get(interaction.guild.text_channels, name="create-ticket-mm")
+    if existing_channel:
+        await interaction.followup.send(
+            f"✅ Channel {existing_channel.mention} sudah ada. User bisa langsung klik tombolnya.",
+            ephemeral=True
+        )
+        return
+
+    try:
+        mm_category = discord.utils.get(interaction.guild.categories, name="TICKET MIDDLEMAN")
+        if not mm_category:
+            mm_category = await interaction.guild.create_category(name="TICKET MIDDLEMAN")
+
+        overwrites = {
+            interaction.guild.default_role: discord.PermissionOverwrite(
+                read_messages=True,
+                send_messages=False,
+                add_reactions=False,
+                attach_files=False
+            ),
+            interaction.guild.me: discord.PermissionOverwrite(
+                read_messages=True,
+                send_messages=True,
+                manage_messages=True,
+                manage_channels=True
+            )
+        }
+
+        channel = await interaction.guild.create_text_channel(
+            name="create-ticket-mm",
+            overwrites=overwrites,
+            category=mm_category,
+            topic="Klik tombol untuk membuka middleman ticket"
+        )
+
+        instruction_embed = discord.Embed(
+            title="Middleman Service Guide",
+            description="Transaksi aman: buyer → admin → seller.",
+            color=0xFF9900,
+            timestamp=datetime.now()
+        )
+        instruction_embed.add_field(
+            name="Cara Pakai",
+            value=(
+                "1. Klik **Create Middleman Ticket**\n"
+                "2. Isi buyer, seller, item, harga\n"
+                "3. Buyer transfer → Admin verifikasi → Seller kirim item"
+            ),
+            inline=False
+        )
+        instruction_embed.add_field(
+            name="Fee Middleman",
+            value=(
+                "< Rp50K : Gratis\n"
+                "Rp50K-500K : Rp2.000\n"
+                "Rp500K-1JT : Rp5.000\n"
+                "Rp1JT-5JT : Rp7.000\n"
+                "Rp5JT-10JT : Rp10.000\n"
+                "Rp10JT+ : Rp15.000"
+            ),
+            inline=False
+        )
+        instruction_embed.add_field(
+            name="Keuntungan",
+            value=(
+                "• Dana ditahan admin sampai item diterima\n"
+                "• 4-layer anti fraud system\n"
+                "• Gratis untuk transaksi kecil"
+            ),
+            inline=False
+        )
+        instruction_embed.set_footer(text="Klik tombol untuk mulai • Trusted Service")
+
+        view = CreateMiddlemanButton()
+        await channel.send(embed=instruction_embed, view=view)
+
+        await interaction.followup.send(
+            f"✅ Channel {channel.mention} berhasil dibuat di kategori **{mm_category.name}**.",
+            ephemeral=True
+        )
+
+        db.log_action(
+            guild_id=interaction.guild.id,
+            user_id=interaction.user.id,
+            action="setup_mm_channel",
+            details=f"Created #create-ticket-mm channel: {channel.id}"
+        )
+
+    except discord.Forbidden:
+        await interaction.followup.send(
+            "❌ Bot tidak punya permission untuk membuat channel. Aktifkan Manage Channels + Manage Messages.",
+            ephemeral=True
+        )
+    except Exception as e:
+        await interaction.followup.send(f"❌ Error: {e}", ephemeral=True)
