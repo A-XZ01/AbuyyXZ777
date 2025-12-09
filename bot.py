@@ -2590,7 +2590,6 @@ class MyClient(discord.Client):
         # Start auto-update leaderboard task
         self.auto_update_leaderboard.start()
     
-        
         # Sync commands in setup_hook (best practice - runs once at startup)
         print("⏳ Mencoba sinkronisasi Slash Commands...")
         try:
@@ -3474,7 +3473,6 @@ class MyClient(discord.Client):
         # Start auto-update leaderboard task
         self.auto_update_leaderboard.start()
     
-        
         # Sync commands in setup_hook (best practice - runs once at startup)
         print("⏳ Mencoba sinkronisasi Slash Commands...")
         try:
