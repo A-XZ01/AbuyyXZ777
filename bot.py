@@ -2481,7 +2481,7 @@ class MyClient(discord.Client):
             
             submit_embed.add_field(
                 name="⚙️ Admin Panel",
-                value="✅ `/approve-ticket` — Setujui transaksi\n❌ `/reject-ticket` — Tolak transaksi",
+                value="✅ `/done` — Setujui transaksi\n❌ `/reject-ticket` — Tolak transaksi",
                 inline=False
             )
             
@@ -2517,7 +2517,7 @@ class MyClient(discord.Client):
             
             # Determine command based on ticket type
             is_middleman = ticket.get('ticket_type') == 'middleman'
-            approve_cmd = "/approve-mm" if is_middleman else "/approve-ticket"
+            approve_cmd = "/approve-mm" if is_middleman else "/done"
             reject_cmd = "/reject-mm" if is_middleman else "/reject-ticket"
             
             # SEND dengan TAG ADMIN & OWNER
@@ -3211,19 +3211,19 @@ async def add_item_autocomplete(interaction: discord.Interaction, current: str):
 
 
 
-# --- Slash Command: /approve-ticket ---
+# --- Slash Command: /done ---
 @client.tree.command(
-    name="approve-ticket",
-    description="[ADMIN] Approve transaksi di ticket ini dan close ticket."
+    name="done",
+    description="[ADMIN] Tandai transaksi selesai dan tutup ticket."
 )
 @app_commands.default_permissions(administrator=True)
-async def approve_ticket(interaction: discord.Interaction):
+async def done(interaction: discord.Interaction):
     try:
         # Debug logging dengan timestamp
         from datetime import datetime
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         print(f"\n{'='*80}")
-        print(f"[{timestamp}] 🔍 [APPROVE-TICKET] COMMAND STARTED")
+        print(f"[{timestamp}] ✅ [DONE] COMMAND STARTED")
         print(f"{'='*80}")
         print(f"   Channel: {interaction.channel.name} (ID: {interaction.channel.id})")
         print(f"   Guild: {interaction.guild.name} (ID: {interaction.guild.id})")
@@ -3379,7 +3379,7 @@ async def approve_ticket(interaction: discord.Interaction):
             return
         
         # Proceed with approval
-        await interaction.followup.send("⏳ Memproses approval...", ephemeral=True)
+        await interaction.followup.send("⏳ Memproses penyelesaian transaksi...", ephemeral=True)
         
         # Update user stats untuk setiap item
         for item in items:
@@ -3497,7 +3497,7 @@ async def approve_ticket(interaction: discord.Interaction):
             print(f"❌ Error deleting channel: {e}")
     
     except Exception as e:
-        print(f"❌ Error in approve_ticket: {e}")
+        print(f"❌ Error in done: {e}")
         try:
             await interaction.followup.send(f"❌ Error: {e}", ephemeral=True)
         except:
@@ -4199,7 +4199,7 @@ async def list_admins(interaction: discord.Interaction):
         embed.add_field(
             name="✅ Admin Dapat:",
             value=(
-                "• `/approve-ticket` - Approve transaksi\n"
+                "• `/done` - Setujui transaksi\n"
                 "• `/reject-ticket` - Reject transaksi\n"
                 "• `/ticket-stats` - Lihat statistik ticket\n"
                 "• `/user-info` - Info detail user\n"
@@ -4285,7 +4285,7 @@ async def permissions(interaction: discord.Interaction):
                 name="✅ Admin Commands:",
                 value=(
                     "**Ticket Management:**\n"
-                    "• `/approve-ticket` - Approve transactions\n"
+                    "• `/done` - Approve transactions\n"
                     "• `/reject-ticket` - Reject transactions\n\n"
                     "**User Management:**\n"
                     "• `/addrole` - Give role to user\n"
@@ -5097,7 +5097,7 @@ async def approve_mm(interaction: discord.Interaction):
             return
         
         if ticket.get('ticket_type') != 'middleman':
-            await interaction.response.send_message("❌ Ini bukan middleman ticket. Gunakan `/approve-ticket` untuk ticket purchase.", ephemeral=True)
+            await interaction.response.send_message("❌ Ini bukan middleman ticket. Gunakan `/done` untuk ticket purchase.", ephemeral=True)
             return
         
         if ticket['status'] != 'open':

@@ -1,0 +1,23 @@
+name: discord-bot-app
+region: sgp
+services:
+  - name: discord-bot-worker
+    environment_slug: python
+    instance_size_slug: basic-xxs
+    instance_count: 1
+    github:
+      repo: A-XZ01/AbuyyXZ777
+      branch: main
+      deploy_on_push: true
+    run_command: python bot.py
+    build_command: pip install -r requirements.txt
+    envs:
+      - key: DISCORD_BOT_TOKEN
+        scope: RUN_AND_BUILD_TIME
+        value: ""  # isi di dashboard (jangan commit token)
+      - key: GUILD_ID
+        scope: RUN_AND_BUILD_TIME
+        value: ""  # isi guild ID
+      - key: ALLOWED_GUILD_IDS
+        scope: RUN_AND_BUILD_TIME
+        value: ""  # isi koma-sep kalau banyak
