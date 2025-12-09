@@ -91,17 +91,10 @@ Ticket akan tampilkan:
 - Validasi apakah transfer valid
 - Cek nama rekening + jumlah
 
-### 4️⃣ Approve atau Reject
+### 4️⃣ Reject atau Close
 
 **Jika VALID:**
-```
-/approve-ticket
-```
-Bot otomatis:
-- ✅ Update user stats
-- ✅ Add transactions ke database
-- ✅ Unlock achievements (jika ada)
-- ✅ Delete channel dalam 10 detik
+Setelah transaksi selesai, tutup ticket dengan `/close`.
 
 **Jika TIDAK VALID:**
 ```
@@ -138,7 +131,6 @@ Bot otomatis:
 | Buyer | `/add` | Tambah item ke order |
 | Buyer | `/submit` | Upload bukti transfer |
 | Buyer | `/close` | Tutup ticket |
-| Admin | `/approve-ticket` | Approve dan complete transaksi |
 | Admin | `/reject-ticket` | Reject dengan alasan |
 | Admin | `/close` | Close ticket manual |
 
@@ -156,7 +148,7 @@ Buyer:
 
 Admin:
 [Review proof]
-/approve-ticket
+/close setelah transaksi selesai
 
 Result: ✅ Done!
 ```
@@ -174,7 +166,7 @@ Buyer:
 
 Admin:
 [Review proof - Valid ✓]
-/approve-ticket
+/close setelah transaksi selesai
 
 Result: ✅ Done + Achievement Unlocked!
 ```
@@ -201,7 +193,7 @@ Buyer:
 
 Admin:
 [Review - Valid ✓]
-/approve-ticket
+/close setelah transaksi selesai
 
 Result: ✅ Done!
 ```

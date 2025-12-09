@@ -192,7 +192,7 @@ Buka ticket private channel untuk order item.
 1. Bot create private channel (contoh: `ticket-0001`)
 2. Gunakan `/add` untuk order multiple items
 3. Transfer total ke BCA → `/submit` upload bukti
-4. Admin review dan `/approve-ticket` atau `/reject-ticket`
+4. Admin review: jika tidak valid gunakan `/reject-ticket`; jika valid lanjutkan proses manual lalu `/close`
 5. Channel auto-delete setelah selesai
 
 **Contoh:**
@@ -333,18 +333,6 @@ Setup channel #open-ticket untuk buyer buka ticket otomatis.
 **Contoh:**
 ```
 /setup-ticket
-```
-
-#### `/approve-ticket`
-Approve transaksi di ticket dan close ticket otomatis.
-- Auto-update user stats
-- Auto-add transactions
-- Auto-unlock achievements
-- Channel deleted dalam 10 detik
-
-**Contoh:**
-```
-/approve-ticket
 ```
 
 #### `/reject-ticket [reason]`

@@ -37,12 +37,6 @@ Tambahkan item ke ticket Anda (gunakan di ticket channel).
 - **Permission:** Everyone
 - **Info:** Gunakan di ticket untuk add item ke keranjang
 
-### `/approve-ticket`
-[ADMIN] Approve transaksi di ticket ini dan close ticket.
-- **Usage:** `/approve-ticket` (di dalam ticket channel)
-- **Permission:** ADMIN
-- **Info:** Approve & close ticket sekaligus
-
 ### `/reject-ticket`
 [ADMIN] Reject transaksi di ticket ini.
 - **Usage:** `/reject-ticket` (di dalam ticket channel)

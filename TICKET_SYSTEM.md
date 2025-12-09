@@ -31,10 +31,10 @@ Sistem ticket untuk buyer order item dengan private channel. Setiap buyer hanya 
    - Upload bukti transfer setelah order selesai
    - Bot notify admin dengan embed lengkap
 
-4. **Wait for Approval**
+4. **Wait for Review**
    - Admin review bukti transfer
-   - Admin approve → transaksi complete, achievement unlock
-   - Admin reject → buyer bisa close ticket dan buat ticket baru
+   - Jika valid, transaksi diproses manual lalu ticket ditutup
+   - Jika tidak valid, admin reject → buyer bisa close ticket dan buat ticket baru
 
 5. **Close Ticket** - `/close`
    - Ticket ditutup dan channel dihapus otomatis
@@ -46,15 +46,12 @@ Sistem ticket untuk buyer order item dengan private channel. Setiap buyer hanya 
    - Masuk ke ticket channel
    - Lihat ringkasan order + bukti transfer
 
-2. **Approve** - `/approve-ticket`
-   - Bot auto-update user stats
-   - Bot auto-add transactions
-   - Bot auto-check achievements
-   - Channel dihapus dalam 10 detik
-
-3. **Reject** - `/reject-ticket reason:Jumlah tidak sesuai`
+2. **Reject** - `/reject-ticket reason:Jumlah tidak sesuai`
    - Ticket ditutup dengan alasan
    - Channel dihapus dalam 30 detik
+
+3. **Close** - `/close`
+   - Tutup ticket setelah transaksi selesai
 
 ## 📋 Commands
 
@@ -71,7 +68,6 @@ Sistem ticket untuk buyer order item dengan private channel. Setiap buyer hanya 
 
 | Command | Description | Example |
 |---------|-------------|---------|
-| `/approve-ticket` | Approve transaksi dan close ticket | `/approve-ticket` |
 | `/reject-ticket` | Reject transaksi dengan alasan | `/reject-ticket reason:Invalid proof` |
 | `/close` | Tutup ticket manual | `/close` |
 | `/add` | Admin bisa add item juga (optional) | `/add item:B quantity:1` |
@@ -173,7 +169,7 @@ CREATE TABLE ticket_items (
 
 6. Wait...
 
-7. Admin approve → Achievement unlocked! → Channel deleted
+7. Admin proses manual → Channel ditutup setelah selesai
 ```
 
 ### Admin Side:
@@ -188,10 +184,8 @@ CREATE TABLE ticket_items (
 
 3. Klik link proof → Valid ✓
 
-4. /approve-ticket
-   → User stats updated
-   → Transactions added
-   → Channel deleted in 10s
+4. Admin proses manual
+   → Gunakan `/close` setelah transaksi selesai
 ```
 
 ## ❓ FAQ

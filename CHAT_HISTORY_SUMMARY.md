@@ -1,15 +1,21 @@
 !(image.png)# Discord Bot - Riwayat Perubahan & Setup
 
-**Tanggal:** 5 Desember 2025 (Updated - 14:40 WIB)
+**Tanggal:** 9 Desember 2025 (Updated)
 **Bot Name:** ASBLOX  
-**Platform:** DigitalOcean Droplet (Ubuntu 24.04 LTS)  
-**Server IP:** 159.223.71.87
+**Platform:** DigitalOcean App Platform (primary) • Droplet (legacy scripts only)  
+**Server IP (legacy droplet):** 159.223.71.87  
 **Repository:** https://github.com/A-XZ01/AbuyyXZ777
-**Database:** SQLite (Fresh Schema - Dec 5, 2025)
+**Database:** SQLite (fresh schema Dec 5, 2025; PostgreSQL-ready via `DATABASE_URL`)
 
 ---
 
-## 🆕 UPDATE TERBARU (5 Desember 2025 - 14:40 WIB)
+## 🆕 UPDATE TERBARU (9 Desember 2025)
+
+### **✅ Environment & Deploy:**
+- ✅ `.python-version` ditambahkan → pin Python 3.12 di App Platform.
+- ✅ `requirements.txt` disederhanakan (Flask/keep_alive dihapus; aiohttp 3.9).
+- ✅ Deploy utama: DigitalOcean App Platform (`app.yaml`, `pip install -r requirements.txt`, `python bot.py`).
+- ✅ Legacy droplet & PowerShell scripts tetap ada sebagai fallback manual.
 
 ### **✅ MIGRASI KE DIGITALOCEAN SELESAI:**
 - ✅ **Droplet Created** - Ubuntu 24.04 LTS di Singapore region
@@ -222,7 +228,6 @@ GROUP BY user_id
 
 ### **Admin Commands:**
 - `/allstats` - Show all-time stats
-- `/approve-ticket` - Approve purchase ticket
 - `/approve-mm` - Approve middleman transaction
 - `/close` - Close ticket
 
@@ -239,7 +244,7 @@ discord.py>=2.3.0
 python-dotenv>=1.0.0
 pytesseract>=0.3.10
 Pillow>=10.0.0
-aiohttp>=3.8.0
+aiohttp>=3.9.0
 imagehash>=4.3.1
 psycopg2-binary>=2.9.9
 ```
