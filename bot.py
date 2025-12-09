@@ -1705,17 +1705,8 @@ class MyClient(discord.Client):
         self.auto_backup_task.start()
         # Start auto-update leaderboard task
         self.auto_update_leaderboard.start()
-    
-    async def on_ready(self):
-        print(f'✅ Bot berhasil Login sebagai {self.user} (ID: {self.user.id})')
-        print(f"📡 Bot aktif di {len(self.guilds)} server")
-        for guild in self.guilds:
-            print(f"   - {guild.name} (ID: {guild.id})")
-            # Auto-leave jika bukan server yang diizinkan
-            if guild.id not in ALLOWED_GUILDS:
-                print(f"⚠️ Server {guild.name} tidak ada di whitelist, keluar...")
-                await guild.leave()
-                print(f"✅ Bot keluar dari server {guild.name}")
+        
+        # Sync commands in setup_hook (best practice - runs once at startup)
         print("⏳ Mencoba sinkronisasi Slash Commands...")
         try:
             # Sync to specific guilds first (faster)
@@ -1732,6 +1723,17 @@ class MyClient(discord.Client):
             print(f"❌ Gagal sinkronisasi commands: {e}")
             import traceback
             traceback.print_exc()
+    
+    async def on_ready(self):
+        print(f'✅ Bot berhasil Login sebagai {self.user} (ID: {self.user.id})')
+        print(f"📡 Bot aktif di {len(self.guilds)} server")
+        for guild in self.guilds:
+            print(f"   - {guild.name} (ID: {guild.id})")
+            # Auto-leave jika bukan server yang diizinkan
+            if guild.id not in ALLOWED_GUILDS:
+                print(f"⚠️ Server {guild.name} tidak ada di whitelist, keluar...")
+                await guild.leave()
+                print(f"✅ Bot keluar dari server {guild.name}")
     
     @tasks.loop(hours=24)
     async def auto_backup_task(self):
@@ -2588,16 +2590,7 @@ class MyClient(discord.Client):
         # Start auto-update leaderboard task
         self.auto_update_leaderboard.start()
     
-    async def on_ready(self):
-        print(f'✅ Bot berhasil Login sebagai {self.user} (ID: {self.user.id})')
-        print(f"📡 Bot aktif di {len(self.guilds)} server")
-        for guild in self.guilds:
-            print(f"   - {guild.name} (ID: {guild.id})")
-            # Auto-leave jika bukan server yang diizinkan
-            if guild.id not in ALLOWED_GUILDS:
-                print(f"⚠️ Server {guild.name} tidak ada di whitelist, keluar...")
-                await guild.leave()
-                print(f"✅ Bot keluar dari server {guild.name}")
+        # Sync commands in setup_hook (best practice - runs once at startup)
         print("⏳ Mencoba sinkronisasi Slash Commands...")
         try:
             # Sync to specific guilds first (faster)
@@ -2609,11 +2602,21 @@ class MyClient(discord.Client):
             # Then global sync as backup
             synced = await self.tree.sync()
             print(f"🎉 {len(synced)} Slash Commands synced globally!")
-            print("💡 Commands sekarang tersedia di semua server!")
+            print("�� Commands sekarang tersedia di semua server!")
         except Exception as e:
             print(f"❌ Gagal sinkronisasi commands: {e}")
             import traceback
             traceback.print_exc()
+    async def on_ready(self):
+        print(f'✅ Bot berhasil Login sebagai {self.user} (ID: {self.user.id})')
+        print(f"📡 Bot aktif di {len(self.guilds)} server")
+        for guild in self.guilds:
+            print(f"   - {guild.name} (ID: {guild.id})")
+            # Auto-leave jika bukan server yang diizinkan
+            if guild.id not in ALLOWED_GUILDS:
+                print(f"⚠️ Server {guild.name} tidak ada di whitelist, keluar...")
+                await guild.leave()
+                print(f"✅ Bot keluar dari server {guild.name}")
     
     @tasks.loop(hours=24)
     async def auto_backup_task(self):
@@ -3470,16 +3473,7 @@ class MyClient(discord.Client):
         # Start auto-update leaderboard task
         self.auto_update_leaderboard.start()
     
-    async def on_ready(self):
-        print(f'✅ Bot berhasil Login sebagai {self.user} (ID: {self.user.id})')
-        print(f"📡 Bot aktif di {len(self.guilds)} server")
-        for guild in self.guilds:
-            print(f"   - {guild.name} (ID: {guild.id})")
-            # Auto-leave jika bukan server yang diizinkan
-            if guild.id not in ALLOWED_GUILDS:
-                print(f"⚠️ Server {guild.name} tidak ada di whitelist, keluar...")
-                await guild.leave()
-                print(f"✅ Bot keluar dari server {guild.name}")
+        # Sync commands in setup_hook (best practice - runs once at startup)
         print("⏳ Mencoba sinkronisasi Slash Commands...")
         try:
             # Sync to specific guilds first (faster)
@@ -3491,11 +3485,21 @@ class MyClient(discord.Client):
             # Then global sync as backup
             synced = await self.tree.sync()
             print(f"🎉 {len(synced)} Slash Commands synced globally!")
-            print("💡 Commands sekarang tersedia di semua server!")
+            print("�� Commands sekarang tersedia di semua server!")
         except Exception as e:
             print(f"❌ Gagal sinkronisasi commands: {e}")
             import traceback
             traceback.print_exc()
+    async def on_ready(self):
+        print(f'✅ Bot berhasil Login sebagai {self.user} (ID: {self.user.id})')
+        print(f"📡 Bot aktif di {len(self.guilds)} server")
+        for guild in self.guilds:
+            print(f"   - {guild.name} (ID: {guild.id})")
+            # Auto-leave jika bukan server yang diizinkan
+            if guild.id not in ALLOWED_GUILDS:
+                print(f"⚠️ Server {guild.name} tidak ada di whitelist, keluar...")
+                await guild.leave()
+                print(f"✅ Bot keluar dari server {guild.name}")
     
     @tasks.loop(hours=24)
     async def auto_backup_task(self):
@@ -4131,6 +4135,16 @@ class MyClient(discord.Client):
                             f"*(Detected via {duplicate['algorithm']} | {duplicate['all_distances']})*"
                         )
                         await message.add_reaction("❌")
+                        return
+        except Exception as e:
+            print(f"❌ Error processing auto-proof: {e}")
+            import traceback
+            traceback.print_exc()
+            await message.channel.send(
+                f"{message.author.mention} ❌ Gagal memproses bukti transfer otomatis. Coba upload ulang screenshot."
+            )
+
+
 # --- Slash Command: /clear ---
 @client.tree.command(
     name="clear",
