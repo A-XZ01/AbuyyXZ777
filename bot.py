@@ -16,7 +16,6 @@ from db import BotDatabase
 from PIL import Image
 import pytesseract
 import imagehash
-from keep_alive import keep_alive
 
 # Fungsi untuk kirim log/error ke channel #bot-log
 async def send_log_message(client, message):
@@ -4852,8 +4851,6 @@ async def reject_mm(interaction: discord.Interaction, reason: str = "Bukti tidak
 
 # --- Jalankan Bot ---
 if __name__ == '__main__':
-    keep_alive()
-
     @client.event
     async def on_ready():
         try:
