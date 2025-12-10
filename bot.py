@@ -1,5 +1,5 @@
 import discord
-from discord import app_commands
+from discord import app_commands, commands
 from discord.ext import tasks
 import json
 import os
@@ -1701,10 +1701,10 @@ ALLOWED_GUILDS = [
     1445079009405833299,  # ASBLOX - Server utama
 ]
 
-class MyClient(discord.Client):
+class MyClient(commands.Bot):
     def __init__(self, *, intents: discord.Intents):
-        super().__init__(intents=intents)
-        self.tree = app_commands.CommandTree(self)
+        super().__init__(intents=intents, command_prefix="!")
+        # tree is already created by Bot base class
 
     async def setup_hook(self):
         """Called when the bot is starting"""
