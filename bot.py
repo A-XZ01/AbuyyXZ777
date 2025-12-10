@@ -1842,7 +1842,7 @@ class MyClient(discord.Client):
         
         # Buat embed modern
         embed = discord.Embed(
-            title="Hourly Leaderboard — Top Sultan 1 Jam Terakhir",
+            title="Daily Leaderboard — Top Sultan Hari Ini",
             description="",
             color=0x00D9FF,  # Cyan modern
             timestamp=dt.now()
@@ -4544,7 +4544,7 @@ async def daily_leaderboard(interaction: discord.Interaction):
         
         # Buat embed baru
         embed = discord.Embed(
-            title="Hourly Leaderboard — Top Sultan 1 Jam Terakhir",
+            title="Daily Leaderboard — Top Sultan Hari Ini",
             description="",
             color=0x00D9FF,  # Cyan modern
             timestamp=dt.now()
