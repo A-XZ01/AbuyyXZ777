@@ -1728,7 +1728,14 @@ class MyClient(discord.Client):
         """Called when bot connects to Discord gateway"""
         print("[CONNECT] Bot connected to Discord gateway")
         # Trigger on_ready manually since discord.Client doesn't auto-trigger it
-        await self.on_ready()
+        try:
+            await asyncio.sleep(0.5)
+            print("[CONNECT] Syncing guild commands...")
+            await self.on_ready()
+        except Exception as e:
+            print(f"[CONNECT] Error in on_ready: {e}")
+            import traceback
+            traceback.print_exc()
     
     async def on_ready(self):
         print("[READY] ===== on_ready() called =====")
@@ -1748,12 +1755,6 @@ class MyClient(discord.Client):
                     print(f"[READY] {len(synced)} commands synced to guild {guild.name}")
                 except Exception as e:
                     print(f"[READY] Guild sync failed for {guild.name}: {e}")
-    
-    async def on_connect(self):
-        """Called when bot connects to Discord gateway"""
-        print("[CONNECT] Bot connected to Discord gateway")
-        # Trigger on_ready manually since discord.Client doesn't auto-trigger it
-        await self.on_ready()
     
     @tasks.loop(hours=24)
     async def auto_backup_task(self):
