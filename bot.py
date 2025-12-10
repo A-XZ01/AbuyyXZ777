@@ -1755,6 +1755,20 @@ class MyClient(commands.Bot):
                 except Exception as e:
                     print(f"[READY] Guild sync failed for {guild.name}: {e}")
     
+    async def on_connect(self):
+        """Called when bot connects to Discord gateway"""
+        print("[CONNECT] Bot connected to Discord gateway")
+        # Wait a moment for guilds to load, then sync
+        await asyncio.sleep(1)
+        print("[CONNECT] Syncing commands to allowed guilds...")
+        for guild in self.guilds:
+            if guild.id in ALLOWED_GUILDS:
+                try:
+                    synced = await self.tree.sync(guild=guild)
+                    print(f"[CONNECT] {len(synced)} commands synced to guild {guild.name}")
+                except Exception as e:
+                    print(f"[CONNECT] Guild sync failed: {e}")
+    
     @tasks.loop(hours=24)
     async def auto_backup_task(self):
         """Auto-backup setiap 24 jam"""
