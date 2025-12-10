@@ -1423,12 +1423,15 @@ async def get_image_hash(image_url: str) -> dict:
 
 
 async def check_similar_images(guild_id: int, new_hashes: dict, current_ticket_id: int = None) -> dict:
-    """Check if similar image exists using MULTI-ALGORITHM comparison
+    """Check if IDENTICAL image exists using STRICT HASH COMPARISON
     
-    Compares using 3 different algorithms and considers match if ANY algorithm detects similarity:
-    - dhash (threshold 25): Gradient comparison, tolerant to color changes
-    - phash (threshold 30): DCT frequency, VERY robust to crop/resize/edit
-    - ahash (threshold 15): Average brightness, simple but effective
+    Compares using 3 different algorithms - ONLY matches if hash is VIRTUALLY IDENTICAL:
+    - dhash (threshold 10): Gradient comparison - must be VERY close
+    - phash (threshold 12): DCT frequency - STRICT threshold to avoid false positives
+    - ahash (threshold 8): Average brightness - very strict
+    
+    NOTE: Changed from loose similarity to STRICT matching to prevent false positives
+    when user uploads different nominal amounts with same source image.
     
     Args:
         guild_id: Guild ID to check
@@ -1477,30 +1480,30 @@ async def check_similar_images(guild_id: int, new_hashes: dict, current_ticket_i
             ahash_dist = new_ahash - stored_ahash if stored_ahash else 999
             
             print(f"📊 Ticket #{ticket['ticket_number']:04d}:")
-            print(f"   • dhash: {dhash_dist} bits (threshold 25)")
-            print(f"   • phash: {phash_dist} bits (threshold 30)")
-            print(f"   • ahash: {ahash_dist} bits (threshold 15)")
+            print(f"   • dhash: {dhash_dist} bits (threshold 10 - STRICT)")
+            print(f"   • phash: {phash_dist} bits (threshold 12 - STRICT)")
+            print(f"   • ahash: {ahash_dist} bits (threshold 8 - STRICT)")
             
-            # MULTI-ALGORITHM DETECTION: Match if ANY algorithm detects similarity
+            # MULTI-ALGORITHM DETECTION: Match ONLY if hash is VIRTUALLY IDENTICAL
             matched = False
             match_algorithm = None
             best_distance = 999
             
-            # Check dhash (gradient) - threshold 25 (very tolerant to edits)
-            if dhash_dist <= 25:
+            # Check dhash (gradient) - threshold 10 (STRICT - must be very close)
+            if dhash_dist <= 10:
                 matched = True
                 match_algorithm = "dhash (gradient)"
                 best_distance = dhash_dist
             
-            # Check phash (DCT frequency) - threshold 30 (MOST robust for crop/resize)
-            if phash_dist <= 30:
+            # Check phash (DCT frequency) - threshold 12 (STRICT - virtually identical)
+            if phash_dist <= 12:
                 if not matched or phash_dist < best_distance:
                     matched = True
                     match_algorithm = "phash (frequency)"
                     best_distance = phash_dist
             
-            # Check ahash (brightness) - threshold 15 (moderate)
-            if ahash_dist <= 15:
+            # Check ahash (brightness) - threshold 8 (STRICT - very close)
+            if ahash_dist <= 8:
                 if not matched or ahash_dist < best_distance:
                     matched = True
                     match_algorithm = "ahash (brightness)"
