@@ -2396,16 +2396,22 @@ class MyClient(discord.Client):
                 else:
                     print("✅ No similar images found")
             
-            # Ambil data items (optional - may be empty with new button-based system)
+            # Ambil data items (jika ada)
             items = db.get_ticket_items(ticket['id'])
-            grand_total = sum(i['amount'] for i in items) if items else 0
+            
+            # Hitung grand total (jika ada items)
+            if items:
+                grand_total = sum(i['amount'] for i in items)
+            else:
+                grand_total = 0
             
             # ===== LAYER 3: OCR AMOUNT DETECTION =====
             detected_amount = await extract_amount_from_image(proof_url)
             amount_warning = None
             
+            # Only check amount if items exist AND OCR detected something
             if detected_amount and grand_total > 0:
-                # Compare detected amount with expected total (only if items exist)
+                # Compare detected amount with expected total
                 tolerance = 1000  # Allow Rp1.000 difference (for fees, etc)
 
                 diff = abs(detected_amount - grand_total)
@@ -2430,18 +2436,22 @@ class MyClient(discord.Client):
             
             submit_embed.add_field(name="🎫 Ticket ID", value=f"`#{ticket['ticket_number']:04d}`", inline=True)
             submit_embed.add_field(name="👤 Username", value=f"`{ticket['game_username']}`", inline=True)
-            submit_embed.add_field(name="💳 Total", value=f"**{format_idr(grand_total)}**" if grand_total > 0 else "No items", inline=True)
             
-            items_list = []
-            for i in items:
-                items_list.append(f"`{i['item_name']}` — {format_idr(i['amount'])}")
-            
-            if items_list:
+            # Only show total if items exist
+            if grand_total > 0:
+                submit_embed.add_field(name="💳 Total", value=f"**{format_idr(grand_total)}**", inline=True)
+                
+                items_list = []
+                for i in items:
+                    items_list.append(f"`{i['item_name']}` — {format_idr(i['amount'])}")
+                
                 submit_embed.add_field(
                     name="📦 Detail Order",
                     value="\n".join(items_list),
                     inline=False
                 )
+            else:
+                submit_embed.add_field(name="💳 Total", value="ℹ️ Tidak ada item (manual request)", inline=True)
             
             # Add OCR detection info if available
             if detected_amount:
