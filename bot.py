@@ -2341,14 +2341,7 @@ class MyClient(discord.Client):
                 print(f"   ahash: {proof_hash['ahash'][:16]}...")
                 print(f"   combined: {proof_hash['combined'][:50]}...")
                 
-                # CRITICAL FIX: Save hash FIRST before checking (so we have data to compare)
-                print(f"💾 Saving hashes to database...")
-                print(f"   Ticket ID: {ticket['id']}")
-                print(f"   Transfer signature: {transfer_signature[:30] if transfer_signature else 'None'}...")
-                db.save_proof_hash(ticket['id'], proof_hash['combined'], transfer_signature)
-                print("✅ Hashes saved successfully")
-                
-                # Now check similarity (will compare with OTHER tickets, excluding current one)
+                # CRITICAL FIX: CHECK similarity FIRST, THEN save hash
                 print(f"\n🔍 Multi-algorithm similarity check...")
                 print(f"   Current ticket ID to EXCLUDE: {ticket['id']}")
                 print(f"   Guild ID: {message.guild.id}")
@@ -2378,6 +2371,7 @@ class MyClient(discord.Client):
                     # Different ticket - fraud attempt
                     print(f"🚨 LAYER 2 FRAUD DETECTED: Image similarity with Ticket #{duplicate['ticket_number']:04d}")
                     # Gambar similar terdeteksi
+
                     duplicate_user = await message.guild.fetch_member(int(duplicate['user_id']))
                     
                     await message.channel.send(
@@ -2789,22 +2783,33 @@ async def clear_proof_hashes(interaction: discord.Interaction):
             conn.close()
             return
         
-        # Update semua proof_hash menjadi NULL
+        # CRITICAL: Delete ALL tickets to reset system completely for testing
         cursor.execute("""
-            UPDATE tickets SET proof_hash = NULL, transfer_signature = NULL 
-            WHERE guild_id = ?
+            DELETE FROM ticket_items WHERE ticket_id IN (
+                SELECT id FROM tickets WHERE guild_id = ?
+            )
         """, (str(interaction.guild.id),))
+        
+        deleted_items = cursor.rowcount
+        
+        cursor.execute("""
+            DELETE FROM tickets WHERE guild_id = ?
+        """, (str(interaction.guild.id),))
+        
+        deleted_tickets = cursor.rowcount
         
         conn.commit()
         conn.close()
         
         # Log action
-        db.log_action(interaction.guild.id, interaction.user.id, "clear_proof_hashes", f"Cleared {count} proof hashes")
+        db.log_action(interaction.guild.id, interaction.user.id, "clear_all_for_testing", f"Deleted {deleted_tickets} tickets and {deleted_items} items")
         
         await interaction.followup.send(
-            f"✅ **Berhasil menghapus {count} proof hash(es)!**\n"
-            f"Sistem fraud detection telah di-reset untuk pengujian dengan foto lama.\n"
-            f"💡 Tester sekarang dapat menggunakan foto bukti transfer yang sudah ada sebelumnya.",
+            f"✅ **Fresh Start untuk Testing!**\n"
+            f"• Deleted: {deleted_tickets} tickets\n"
+            f"• Deleted: {deleted_items} ticket items\n"
+            f"• Deleted: {count} proof hashes\n\n"
+            f"💡 Database sekarang kosong. Tester dapat menggunakan foto bukti transfer lama tanpa terdeteksi fraud.",
             ephemeral=True
         )
     
