@@ -1723,6 +1723,18 @@ class MyClient(commands.Bot):
             print(f"[SETUP] {len(synced)} slash commands synced globally")
         except Exception as e:
             print(f"[SETUP] Command sync failed: {e}")
+        
+        # Wait for gateway connection, then sync to guilds
+        print("[SETUP] Waiting for gateway connection to sync guild-specific commands...")
+        await asyncio.sleep(2)  # Wait for bot to connect to gateway
+        
+        for guild in self.guilds:
+            if guild.id in ALLOWED_GUILDS:
+                try:
+                    synced = await self.tree.sync(guild=guild)
+                    print(f"[SETUP] {len(synced)} commands synced to guild {guild.name}")
+                except Exception as e:
+                    print(f"[SETUP] Guild sync failed for {guild.name}: {e}")
     
     async def on_ready(self):
         print("[READY] ===== on_ready() called =====")
