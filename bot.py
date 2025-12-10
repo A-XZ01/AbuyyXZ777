@@ -2763,6 +2763,55 @@ async def reset_all_tickets(interaction: discord.Interaction):
         await interaction.followup.send(f"❌ Error: {e}", ephemeral=True)
 
 
+# --- Slash Command: /clear-proof-hashes ---
+@client.tree.command(
+    name="clear-proof-hashes",
+    description="[OWNER] Hapus semua history proof hashes untuk reset fraud detection system."
+)
+@app_commands.default_permissions(administrator=True)
+@owner_only()
+async def clear_proof_hashes(interaction: discord.Interaction):
+    """Hapus semua proof hashes dari database"""
+    await interaction.response.defer(ephemeral=True)
+    
+    try:
+        # Count proof hashes sebelum dihapus
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT COUNT(*) FROM tickets WHERE guild_id = ? AND proof_hash IS NOT NULL
+        """, (str(interaction.guild.id),))
+        count = cursor.fetchone()[0]
+        
+        if count == 0:
+            await interaction.followup.send("ℹ️ Tidak ada proof hash yang perlu dihapus.", ephemeral=True)
+            conn.close()
+            return
+        
+        # Update semua proof_hash menjadi NULL
+        cursor.execute("""
+            UPDATE tickets SET proof_hash = NULL, transfer_signature = NULL 
+            WHERE guild_id = ?
+        """, (str(interaction.guild.id),))
+        
+        conn.commit()
+        conn.close()
+        
+        # Log action
+        db.log_action(interaction.guild.id, interaction.user.id, "clear_proof_hashes", f"Cleared {count} proof hashes")
+        
+        await interaction.followup.send(
+            f"✅ **Berhasil menghapus {count} proof hash(es)!**\n"
+            f"Sistem fraud detection telah di-reset untuk pengujian dengan foto lama.\n"
+            f"💡 Tester sekarang dapat menggunakan foto bukti transfer yang sudah ada sebelumnya.",
+            ephemeral=True
+        )
+    
+    except Exception as e:
+        await interaction.followup.send(f"❌ Error: {e}", ephemeral=True)
+
+
 @client.tree.command(
     name="rollback_backup",
     description="[OWNER] Restore data dari backup terakhir atau dari file backup yang dipilih."
