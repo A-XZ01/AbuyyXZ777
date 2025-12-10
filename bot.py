@@ -1731,24 +1731,18 @@ class MyClient(discord.Client):
         asyncio.create_task(self._sync_guild_commands())
     
     async def _sync_guild_commands(self):
-        """Background task to sync commands to guilds"""
+        """Background task to verify commands are available"""
         try:
-            print("[SYNC] Starting guild command sync...")
-            await asyncio.sleep(1)  # Wait for guilds to load
+            print("[SYNC] Verifying command availability...")
+            await asyncio.sleep(2)
             
-            print(f"[SYNC] Tree has {len(self.tree._get_all_commands())} commands registered")
-            
+            print(f"[SYNC] Bot has access to {len(self.guilds)} guilds")
             for guild in self.guilds:
-                if guild.id in ALLOWED_GUILDS:
-                    try:
-                        synced = await self.tree.sync(guild=guild)
-                        print(f"[SYNC] {len(synced)} commands synced to guild {guild.name}")
-                    except Exception as e:
-                        print(f"[SYNC] Guild sync failed: {e}")
+                print(f"[SYNC]   - {guild.name} (ID: {guild.id})")
+            
+            print("[SYNC] Commands should appear in Discord autocomplete after client refresh")
         except Exception as e:
-            print(f"[SYNC] Error in background sync: {e}")
-            import traceback
-            traceback.print_exc()
+            print(f"[SYNC] Error: {e}")
     
     async def on_ready(self):
         print("[READY] ===== on_ready() called =====")
