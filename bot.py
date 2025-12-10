@@ -1725,6 +1725,7 @@ class MyClient(discord.Client):
             print(f"[SETUP] Command sync failed: {e}")
     
     async def on_ready(self):
+        print("[READY] ===== on_ready() called =====")
         print(f'[READY] Bot logged in as {self.user} (ID: {self.user.id})')
         print(f"[READY] Bot is active in {len(self.guilds)} servers")
         for guild in self.guilds:
