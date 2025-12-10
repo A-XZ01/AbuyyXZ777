@@ -1736,6 +1736,8 @@ class MyClient(discord.Client):
             print("[SYNC] Starting guild command sync...")
             await asyncio.sleep(1)  # Wait for guilds to load
             
+            print(f"[SYNC] Tree has {len(self.tree._get_all_commands())} commands registered")
+            
             for guild in self.guilds:
                 if guild.id in ALLOWED_GUILDS:
                     try:
@@ -5340,13 +5342,6 @@ async def reject_mm(interaction: discord.Interaction, reason: str = "Bukti tidak
 # --- Jalankan Bot ---
 if __name__ == '__main__':
     keep_alive()
-
-    @client.event
-    async def on_ready():
-        try:
-            await send_log_message(client, f"G Bot berhasil di-restart dan online! (PID: {os.getpid()})")
-        except Exception:
-            pass
 
     try:
         client.run(TOKEN)
