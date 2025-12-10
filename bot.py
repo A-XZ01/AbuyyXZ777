@@ -247,8 +247,8 @@ class UsernameModal(discord.ui.Modal, title="=Ľ Create New Ticket"):
                     SelectOption(
                         label=item['name'],
                         value=item['code'],
-                        description=f"{item['robux']} R$ G Rp{item['price_idr']:,}",
-                        emoji="=ī"
+                        description=f"{item['robux']} R$ • Rp{item['price_idr']:,}",
+                        emoji="💎"
                     )
                 )
             
@@ -418,7 +418,7 @@ class CreateTicketButton(discord.ui.View):
     @discord.ui.button(
         label="Create Ticket",
         style=discord.ButtonStyle.primary,
-        emoji="=Ľ",
+        emoji="🎫",
         custom_id="create_ticket_button"
     )
     async def create_ticket(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -756,19 +756,19 @@ class FeePayerSelectView(discord.ui.View):
                 label="Buyer Pays Full Fee",
                 value="buyer",
                 description="Buyer bayar harga + fee penuh",
-                emoji="="
+                emoji="💰"
             ),
             discord.SelectOption(
                 label="Seller Pays Full Fee",
                 value="seller",
                 description="Seller terima harga - fee penuh",
-                emoji="="
+                emoji="🛍️"
             ),
             discord.SelectOption(
                 label="Split Fee 50:50 (Hanya >5 Juta)",
                 value="split",
                 description="Fee dibagi 50:50 antara buyer & seller",
-                emoji="="
+                emoji="⚖️"
             )
         ]
     )
@@ -788,7 +788,7 @@ class CreateMiddlemanButton(discord.ui.View):
     @discord.ui.button(
         label="Create Middleman Ticket",
         style=discord.ButtonStyle.success,
-        emoji="=",
+        emoji="🔀",
         custom_id="create_mm_ticket_button"
     )
     async def create_mm_ticket(self, interaction: discord.Interaction, button: discord.ui.Button):
