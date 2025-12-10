@@ -1,6 +1,6 @@
 import discord
 from discord import app_commands
-from discord.ext import tasks, commands
+from discord.ext import tasks
 import json
 import os
 import re
@@ -1701,10 +1701,10 @@ ALLOWED_GUILDS = [
     1445079009405833299,  # ASBLOX - Server utama
 ]
 
-class MyClient(commands.Bot):
+class MyClient(discord.Client):
     def __init__(self, *, intents: discord.Intents):
-        super().__init__(intents=intents, command_prefix="!")
-        # tree is already created by Bot base class
+        super().__init__(intents=intents)
+        self.tree = app_commands.CommandTree(self)
 
     async def setup_hook(self):
         """Called when the bot is starting"""
@@ -1723,18 +1723,12 @@ class MyClient(commands.Bot):
             print(f"[SETUP] {len(synced)} slash commands synced globally")
         except Exception as e:
             print(f"[SETUP] Command sync failed: {e}")
-        
-        # Wait for gateway connection, then sync to guilds
-        print("[SETUP] Waiting for gateway connection to sync guild-specific commands...")
-        await asyncio.sleep(2)  # Wait for bot to connect to gateway
-        
-        for guild in self.guilds:
-            if guild.id in ALLOWED_GUILDS:
-                try:
-                    synced = await self.tree.sync(guild=guild)
-                    print(f"[SETUP] {len(synced)} commands synced to guild {guild.name}")
-                except Exception as e:
-                    print(f"[SETUP] Guild sync failed for {guild.name}: {e}")
+    
+    async def on_connect(self):
+        """Called when bot connects to Discord gateway"""
+        print("[CONNECT] Bot connected to Discord gateway")
+        # Trigger on_ready manually since discord.Client doesn't auto-trigger it
+        await self.on_ready()
     
     async def on_ready(self):
         print("[READY] ===== on_ready() called =====")
@@ -1758,16 +1752,8 @@ class MyClient(commands.Bot):
     async def on_connect(self):
         """Called when bot connects to Discord gateway"""
         print("[CONNECT] Bot connected to Discord gateway")
-        # Wait a moment for guilds to load, then sync
-        await asyncio.sleep(1)
-        print("[CONNECT] Syncing commands to allowed guilds...")
-        for guild in self.guilds:
-            if guild.id in ALLOWED_GUILDS:
-                try:
-                    synced = await self.tree.sync(guild=guild)
-                    print(f"[CONNECT] {len(synced)} commands synced to guild {guild.name}")
-                except Exception as e:
-                    print(f"[CONNECT] Guild sync failed: {e}")
+        # Trigger on_ready manually since discord.Client doesn't auto-trigger it
+        await self.on_ready()
     
     @tasks.loop(hours=24)
     async def auto_backup_task(self):
