@@ -1715,33 +1715,25 @@ class MyClient(discord.Client):
         self.auto_backup_task.start()
         # Start auto-update leaderboard task
         self.auto_update_leaderboard.start()
+        
+        # Sync commands early in startup
+        print("[SETUP] Attempting to sync slash commands...")
+        try:
+            synced = await self.tree.sync()
+            print(f"[SETUP] {len(synced)} slash commands synced globally")
+        except Exception as e:
+            print(f"[SETUP] Command sync failed: {e}")
     
     async def on_ready(self):
-        print(f'G Bot berhasil Login sebagai {self.user} (ID: {self.user.id})')
-        print(f"= Bot aktif di {len(self.guilds)} server")
+        print(f'[READY] Bot logged in as {self.user} (ID: {self.user.id})')
+        print(f"[READY] Bot is active in {len(self.guilds)} servers")
         for guild in self.guilds:
             print(f"   - {guild.name} (ID: {guild.id})")
             # Auto-leave jika bukan server yang diizinkan
             if guild.id not in ALLOWED_GUILDS:
-                print(f"Gn+ Server {guild.name} tidak ada di whitelist, keluar...")
+                print(f"[READY] Server {guild.name} not in whitelist, leaving...")
                 await guild.leave()
-                print(f"G Bot keluar dari server {guild.name}")
-        print("GŦ Mencoba sinkronisasi Slash Commands...")
-        try:
-            # Sync to specific guilds first (faster)
-            for guild in self.guilds:
-                if guild.id in ALLOWED_GUILDS:
-                    synced_guild = await self.tree.sync(guild=guild)
-                    print(f"= {len(synced_guild)} Commands synced to {guild.name}")
-            
-            # Then global sync as backup
-            synced = await self.tree.sync()
-            print(f"= {len(synced)} Slash Commands synced globally!")
-            print("= Commands sekarang tersedia di semua server!")
-        except Exception as e:
-            print(f"G Gagal sinkronisasi commands: {e}")
-            import traceback
-            traceback.print_exc()
+                print(f"[READY] Bot left server {guild.name}")
     
     @tasks.loop(hours=24)
     async def auto_backup_task(self):
