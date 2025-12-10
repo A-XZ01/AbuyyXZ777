@@ -2341,7 +2341,7 @@ class MyClient(discord.Client):
                 print(f"   ahash: {proof_hash['ahash'][:16]}...")
                 print(f"   combined: {proof_hash['combined'][:50]}...")
                 
-                # CRITICAL FIX: CHECK similarity FIRST, THEN save hash
+                # Now check similarity (will compare with OTHER tickets, excluding current one)
                 print(f"\n🔍 Multi-algorithm similarity check...")
                 print(f"   Current ticket ID to EXCLUDE: {ticket['id']}")
                 print(f"   Guild ID: {message.guild.id}")
@@ -2372,6 +2372,7 @@ class MyClient(discord.Client):
                     print(f"🚨 LAYER 2 FRAUD DETECTED: Image similarity with Ticket #{duplicate['ticket_number']:04d}")
                     # Gambar similar terdeteksi
 
+
                     duplicate_user = await message.guild.fetch_member(int(duplicate['user_id']))
                     
                     await message.channel.send(
@@ -2395,23 +2396,18 @@ class MyClient(discord.Client):
                 else:
                     print("✅ No similar images found")
             
-            # Ambil data items
+            # Ambil data items (optional - may be empty with new button-based system)
             items = db.get_ticket_items(ticket['id'])
-            if not items:
-                await message.channel.send(
-                    f"{message.author.mention} ❌ Belum ada item di ticket ini. Gunakan `/add` terlebih dahulu."
-                )
-                return
-            
-            grand_total = sum(i['amount'] for i in items)
+            grand_total = sum(i['amount'] for i in items) if items else 0
             
             # ===== LAYER 3: OCR AMOUNT DETECTION =====
             detected_amount = await extract_amount_from_image(proof_url)
             amount_warning = None
             
-            if detected_amount:
-                # Compare detected amount with expected total
+            if detected_amount and grand_total > 0:
+                # Compare detected amount with expected total (only if items exist)
                 tolerance = 1000  # Allow Rp1.000 difference (for fees, etc)
+
                 diff = abs(detected_amount - grand_total)
                 
                 if diff > tolerance:
@@ -2434,17 +2430,18 @@ class MyClient(discord.Client):
             
             submit_embed.add_field(name="🎫 Ticket ID", value=f"`#{ticket['ticket_number']:04d}`", inline=True)
             submit_embed.add_field(name="👤 Username", value=f"`{ticket['game_username']}`", inline=True)
-            submit_embed.add_field(name="💳 Total", value=f"**{format_idr(grand_total)}**", inline=True)
+            submit_embed.add_field(name="💳 Total", value=f"**{format_idr(grand_total)}**" if grand_total > 0 else "No items", inline=True)
             
             items_list = []
             for i in items:
                 items_list.append(f"`{i['item_name']}` — {format_idr(i['amount'])}")
             
-            submit_embed.add_field(
-                name="📦 Detail Order",
-                value="\n".join(items_list),
-                inline=False
-            )
+            if items_list:
+                submit_embed.add_field(
+                    name="📦 Detail Order",
+                    value="\n".join(items_list),
+                    inline=False
+                )
             
             # Add OCR detection info if available
             if detected_amount:
