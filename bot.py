@@ -1734,6 +1734,13 @@ class MyClient(discord.Client):
                 print(f"[READY] Server {guild.name} not in whitelist, leaving...")
                 await guild.leave()
                 print(f"[READY] Bot left server {guild.name}")
+            else:
+                # Sync commands to this specific guild (ensures commands appear in autocomplete)
+                try:
+                    synced = await self.tree.sync(guild=guild)
+                    print(f"[READY] {len(synced)} commands synced to guild {guild.name}")
+                except Exception as e:
+                    print(f"[READY] Guild sync failed for {guild.name}: {e}")
     
     @tasks.loop(hours=24)
     async def auto_backup_task(self):
