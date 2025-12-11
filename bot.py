@@ -1896,6 +1896,7 @@ class MyClient(discord.Client):
     
     async def on_member_join(self, member: discord.Member):
         """Event ketika ada member baru join server"""
+        print(f"🔔 DEBUG: on_member_join triggered untuk {member.name} di {member.guild.name}")
         try:
             # Cari role "Guest"
             guest_role = discord.utils.get(member.guild.roles, name="Guest")
@@ -1908,7 +1909,10 @@ class MyClient(discord.Client):
             
             # Send welcome message ke #welcome dengan design estetik
             welcome_channel = discord.utils.get(member.guild.text_channels, name="welcome")
+            print(f"🔍 DEBUG: Cari channel 'welcome'... ditemukan: {welcome_channel is not None}")
+            
             if welcome_channel:
+                print(f"✅ Channel #welcome ditemukan, akan send embed...")
                 # Cari channel #open-ticket untuk mention
                 open_ticket_channel = discord.utils.get(member.guild.text_channels, name="open-ticket")
                 # Format channel mention dengan benar
@@ -1962,8 +1966,13 @@ class MyClient(discord.Client):
                 )
                 
                 await welcome_channel.send(embed=welcome_embed)
+                print(f"✅ Welcome embed berhasil di-send ke #welcome")
+            else:
+                print(f"❌ Channel #welcome NOT FOUND di server {member.guild.name}")
         except Exception as e:
             print(f"❌ Error di on_member_join: {e}")
+            import traceback
+            traceback.print_exc()
     
     async def on_member_remove(self, member: discord.Member):
         """Event ketika ada member keluar/kicked/banned dari server"""
