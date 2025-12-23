@@ -11,12 +11,11 @@
 
 ## 🆕 UPDATE TERBARU (23 Desember 2025)
 
-### **✅ Health Check Fixed:**
-- ✅ **Added HTTP health check server** - Simple aiohttp server untuk DigitalOcean App Platform
-  - Endpoint `/health` di port 8080
-  - Bot tetap Discord-only, tambah minimal HTTP untuk health check
-  - Fixed "Readiness probe failed" error
-  - Updated `app.yaml` dengan health_check configuration
+### **✅ Health Check Fixed (v2):**
+- ✅ **Fixed startup timing** - Health server start sebelum bot Discord
+  - Pindah dari `on_ready()` ke `main()` function
+  - Health check sekarang pass sebelum bot fully ready
+  - Fixed "Readiness probe failed" error completely
 
 ### **Current Active Commands: 27 slash commands**
 
