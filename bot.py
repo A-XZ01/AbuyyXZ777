@@ -1737,13 +1737,6 @@ class MyClient(discord.Client):
                 await guild.leave()
                 print(f"✅ [READY] Bot keluar dari server {guild.name}")
         print(f"[READY] Commands sudah di-sync di setup_hook")
-        
-        # Start health check server untuk DigitalOcean App Platform
-        try:
-            self.health_runner = await create_health_server()
-            print("🌐 Health check server started successfully")
-        except Exception as e:
-            print(f"❌ Failed to start health server: {e}")
     
     @tasks.loop(hours=24)
     async def auto_backup_task(self):
@@ -5054,29 +5047,36 @@ async def create_health_server():
 
 # --- Jalankan Bot ---
 if __name__ == '__main__':
-    @client.event
-    async def on_ready():
+    async def main():
+        # Start health check server terlebih dahulu
+        print("🌐 Starting health check server...")
         try:
-            await send_log_message(client, f"✅ Bot berhasil di-restart dan online! (PID: {os.getpid()})")
-        except Exception:
-            pass
-
-    try:
-        client.run(TOKEN)
-    except discord.LoginFailure:
-        print("❌ ERROR: Token bot tidak valid. Cek kembali token di file .env.")
+            health_runner = await create_health_server()
+            print("✅ Health check server started successfully")
+        except Exception as e:
+            print(f"❌ Failed to start health server: {e}")
+            return
+        
+        # Jalankan bot Discord
         try:
-            import asyncio
-            asyncio.run(send_log_message(client, "❌ ERROR: Token bot tidak valid. Cek kembali token di file .env."))
-        except Exception:
-            pass
-    except Exception as e:
-        import traceback
-        error_text = f"❌ ERROR: Terjadi kesalahan saat menjalankan bot: {e}\n{traceback.format_exc()}"
-        print(error_text)
-        try:
-            import asyncio
-            asyncio.run(send_log_message(client, error_text))
-        except Exception:
-            pass
+            client.run(TOKEN)
+        except discord.LoginFailure:
+            print("❌ ERROR: Token bot tidak valid. Cek kembali token di file .env.")
+            try:
+                import asyncio
+                asyncio.run(send_log_message(client, "❌ ERROR: Token bot tidak valid. Cek kembali token di file .env."))
+            except Exception:
+                pass
+        except Exception as e:
+            import traceback
+            error_text = f"❌ ERROR: Terjadi kesalahan saat menjalankan bot: {e}\n{traceback.format_exc()}"
+            print(error_text)
+            try:
+                import asyncio
+                asyncio.run(send_log_message(client, error_text))
+            except Exception:
+                pass
+    
+    # Jalankan main function
+    asyncio.run(main())
 
