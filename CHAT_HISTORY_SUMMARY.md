@@ -11,16 +11,13 @@
 
 ## 🆕 UPDATE TERBARU (23 Desember 2025)
 
-### **✅ New Command Added:**
-- ✅ **Added `/confirm-payment` command** - Buyer payment confirmation
-  - Allows buyers to confirm successful transfer with proof
-  - Requires image attachment (payment proof)
-  - Optional message field
-  - Only works in ticket channels
-  - Only buyer (ticket creator) can use it
-  - Sends notification to admins with proof image
-  - Logs action to database
-  
+### **✅ Health Check Fixed:**
+- ✅ **Added HTTP health check server** - Simple aiohttp server untuk DigitalOcean App Platform
+  - Endpoint `/health` di port 8080
+  - Bot tetap Discord-only, tambah minimal HTTP untuk health check
+  - Fixed "Readiness probe failed" error
+  - Updated `app.yaml` dengan health_check configuration
+
 ### **Current Active Commands: 27 slash commands**
 
 ### **✅ Final Decision:**
