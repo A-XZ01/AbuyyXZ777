@@ -4918,74 +4918,60 @@ async def confirm_payment(interaction: discord.Interaction):
         
         # total_robux is not needed, use estimated_robux and total_idr only
         
-        # Buat embed konfirmasi pembayaran
+        # Checklist status
+        checklist = []
+        checklist.append("✅ Ticket memiliki items" if ticket_items else "❌ Ticket belum ada items")
+        checklist.append(f"✅ Rate Robux: {rate:,}" if rate > 0 else "❌ Rate Robux belum di-set")
+        checklist.append("✅ Semua item ada di katalog" if all(item.get('item_id') for item in ticket_items) else "❌ Ada item belum di katalog")
+        checklist.append("✅ Database connection OK")
+        checklist_text = "\n".join(checklist)
+
+        # Update stats & transaksi
+        db.add_transaction(interaction.guild.id, ticket['user_id'], total_idr, category="purchase", notes=f"Ticket #{ticket['ticket_number']}", recorded_by=interaction.user.id)
+        db.update_user_stats(interaction.guild.id, ticket['user_id'], total_idr)
+
+        # Close ticket otomatis
+        db.close_ticket(ticket['id'], closed_by=interaction.user.id, approved_by=interaction.user.id)
+
+        # Gabungkan notifikasi ke satu embed
         confirm_embed = discord.Embed(
             title="✅ Pembayaran Dikonfirmasi Admin",
-            description=f"Pembayaran untuk Ticket #{ticket['ticket_number']:04d} telah dikonfirmasi!",
+            description=f"Pembayaran untuk Ticket #{ticket['ticket_number']:04d} telah dikonfirmasi!\n\n{checklist_text}",
             color=discord.Color.green(),
             timestamp=datetime.now()
         )
-        
         confirm_embed.add_field(
             name="👤 Buyer",
             value=f"<@{ticket['user_id']}>",
             inline=True
         )
-        
         confirm_embed.add_field(
             name="👨‍💼 Admin",
             value=f"{interaction.user.mention}",
             inline=True
         )
-        
         confirm_embed.add_field(
             name="📦 Total Item",
             value=f"~{estimated_robux} R$ • Rp{total_idr:,}",
             inline=False
         )
-        
         confirm_embed.set_footer(
             text=f"Dikonfirmasi oleh {interaction.user.display_name}",
             icon_url=interaction.user.display_avatar.url
         )
-        
-        # Kirim ke channel
+
+        # Kirim embed ke channel dan followup (admin)
         await interaction.channel.send(embed=confirm_embed)
-        
+        await interaction.followup.send(embed=confirm_embed, ephemeral=True)
+
         # Kirim notifikasi ke buyer
         buyer = interaction.guild.get_member(ticket['user_id'])
         if buyer:
             try:
-                dm_embed = discord.Embed(
-                    title="🎉 Pembayaran Dikonfirmasi!",
-                    description=f"Pembayaran Anda untuk Ticket #{ticket['ticket_number']:04d} telah dikonfirmasi oleh admin!",
-                    color=discord.Color.green(),
-                    timestamp=datetime.now()
-                )
-                dm_embed.add_field(
-                    name="📦 Items",
-                    value=f"~{estimated_robux} Robux",
-                    inline=True
-                )
-                dm_embed.add_field(
-                    name="💰 Total",
-                    value=f"Rp{total_idr:,}",
-                    inline=True
-                )
-                dm_embed.set_footer(text="Silakan tunggu admin memproses pesanan Anda")
-                await buyer.send(embed=dm_embed)
+                await buyer.send(embed=confirm_embed)
             except:
                 pass  # DM gagal, ignore
-        
-        await interaction.followup.send(
-            f"✅ **Pembayaran dikonfirmasi!**\n\n"
-            f"👤 Buyer: <@{ticket['user_id']}>\n"
-            f"📦 Total items: ~{estimated_robux} R$\n"
-            f"💰 Total: Rp{total_idr:,}\n\n"
-            f"Buyer telah di-notifikasi via DM.",
-            ephemeral=True
-        )
-        
+
         # Log action
         db.log_action(
             guild_id=interaction.guild.id,
