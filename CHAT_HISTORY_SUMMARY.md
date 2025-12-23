@@ -1,6 +1,6 @@
 !(image.png)# Discord Bot - Riwayat Perubahan & Setup
 
-**Tanggal:** 10 Desember 2025 (Updated)
+**Tanggal:** 23 Desember 2025 (Updated)
 **Bot Name:** ASBLOX  
 **Platform:** DigitalOcean App Platform (primary) • Droplet (legacy scripts only)  
 **Server IP (legacy droplet):** 159.223.71.87  
@@ -9,7 +9,19 @@
 
 ---
 
-## 🆕 UPDATE TERBARU (10 Desember 2025 - Final)
+## 🆕 UPDATE TERBARU (23 Desember 2025)
+
+### **✅ New Command Added:**
+- ✅ **Added `/confirm-payment` command** - Buyer payment confirmation
+  - Allows buyers to confirm successful transfer with proof
+  - Requires image attachment (payment proof)
+  - Optional message field
+  - Only works in ticket channels
+  - Only buyer (ticket creator) can use it
+  - Sends notification to admins with proof image
+  - Logs action to database
+  
+### **Current Active Commands: 27 slash commands**
 
 ### **✅ Final Decision:**
 - ❌ **Removed `/done` command** - Not needed for current workflow
@@ -21,18 +33,19 @@
   - Commands sync automatically when bot starts
   - No manual sync needed by admins
   
-### **Current Active Commands: 26 slash commands**
+### **Current Active Commands: 27 slash commands**
 1. `/reset_stats`, `/reset-tickets`, `/reset-all-tickets` - Data management
 2. `/rollback_backup`, `/list_backups` - Backup management
 3. `/stats`, `/allstats`, `/daily-leaderboard` - Statistics
 4. `/add` - Add items to ticket
-5. `/approve-mm`, `/reject-mm` - Approve/reject middleman
-6. `/reject-ticket`, `/close` - Ticket management
-7. `/setup-ticket`, `/setup-mm` - Initialize systems
-8. `/clear`, `/set-admin`, `/remove-admin` - Admin tools
-9. `/list-admins`, `/permissions`, `/user-info` - Info commands
-10. `/addrole`, `/removerole` - Role management
-11. `/set-rate`, `/add-item`, `/remove-item` - Item management
+5. `/confirm-payment` - Buyer payment confirmation
+6. `/approve-mm`, `/reject-mm` - Approve/reject middleman
+7. `/reject-ticket`, `/close` - Ticket management
+8. `/setup-ticket`, `/setup-mm` - Initialize systems
+9. `/clear`, `/set-admin`, `/remove-admin` - Admin tools
+10. `/list-admins`, `/permissions`, `/user-info` - Info commands
+11. `/addrole`, `/removerole` - Role management
+12. `/set-rate`, `/add-item`, `/remove-item` - Item management
 
 ---
 
@@ -286,6 +299,7 @@ GROUP BY user_id
 
 ### **User Commands:**
 - `/add` - Add item to ticket
+- `/confirm-payment` - Confirm successful payment with proof
 - `/submit-proof` - Submit payment proof
 
 ---

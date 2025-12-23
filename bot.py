@@ -4858,6 +4858,170 @@ async def reject_mm(interaction: discord.Interaction, reason: str = "Bukti tidak
         await interaction.followup.send(f"❌ Error: {e}", ephemeral=True)
 
 
+# --- Slash Command: /confirm-payment ---
+@client.tree.command(
+    name="confirm-payment",
+    description="Konfirmasi bahwa buyer sudah transfer pembayaran"
+)
+@app_commands.describe(
+    proof='Upload bukti transfer (gambar/foto)',
+    message='Pesan tambahan (opsional)'
+)
+async def confirm_payment(interaction: discord.Interaction, proof: discord.Attachment = None, message: str = None):
+    """Konfirmasi pembayaran dari buyer"""
+    await interaction.response.defer()
+    
+    # Cek apakah di ticket channel
+    ticket = db.get_ticket_by_channel(interaction.channel.id)
+    
+    if not ticket:
+        await interaction.followup.send("❌ Command ini hanya bisa digunakan di ticket channel.", ephemeral=True)
+        return
+    
+    if ticket['status'] != 'open':
+        await interaction.followup.send("❌ Ticket ini sudah ditutup.", ephemeral=True)
+        return
+    
+    # Cek apakah user adalah buyer (pembuat ticket)
+    if interaction.user.id != ticket['user_id']:
+        await interaction.followup.send("❌ Hanya buyer (pembuat ticket) yang bisa konfirmasi pembayaran!", ephemeral=True)
+        return
+    
+    # Validasi attachment
+    if not proof:
+        await interaction.followup.send("❌ Harus upload bukti transfer (gambar/foto)!", ephemeral=True)
+        return
+    
+    # Cek tipe file
+    if not proof.content_type or not proof.content_type.startswith('image/'):
+        await interaction.followup.send("❌ Bukti transfer harus berupa gambar (PNG/JPG/JPEG)!", ephemeral=True)
+        return
+    
+    # Cek ukuran file (max 8MB)
+    if proof.size > 8 * 1024 * 1024:
+        await interaction.followup.send("❌ Ukuran file maksimal 8MB!", ephemeral=True)
+        return
+    
+    try:
+        # Download gambar untuk OCR (opsional, untuk deteksi nominal)
+        proof_data = await proof.read()
+        
+        # Simpan bukti ke database (opsional)
+        # Kita bisa simpan URL attachment Discord
+        
+        # Buat embed konfirmasi pembayaran
+        confirm_embed = discord.Embed(
+            title="💳 Pembayaran Dikonfirmasi",
+            description=f"Buyer telah mengkonfirmasi pembayaran untuk Ticket #{ticket['ticket_number']:04d}",
+            color=discord.Color.green(),
+            timestamp=datetime.now()
+        )
+        
+        confirm_embed.add_field(
+            name="👤 Buyer",
+            value=f"{interaction.user.mention}",
+            inline=True
+        )
+        
+        confirm_embed.add_field(
+            name="🎫 Ticket",
+            value=f"#{ticket['ticket_number']:04d}",
+            inline=True
+        )
+        
+        confirm_embed.add_field(
+            name="📸 Bukti Transfer",
+            value=f"[Lihat Bukti]({proof.url})",
+            inline=True
+        )
+        
+        if message:
+            confirm_embed.add_field(
+                name="💬 Pesan",
+                value=f"`{message}`",
+                inline=False
+            )
+        
+        confirm_embed.set_image(url=proof.url)
+        
+        confirm_embed.set_footer(
+            text=f"Konfirmasi oleh {interaction.user.display_name}",
+            icon_url=interaction.user.display_avatar.url
+        )
+        
+        # Kirim ke channel
+        await interaction.channel.send(embed=confirm_embed)
+        
+        # Kirim notifikasi ke admin
+        guild_config = db.get_guild_config(interaction.guild.id)
+        admin_roles = guild_config.get('admin_roles', [])
+        owner = interaction.guild.owner
+        
+        # Mention admin & owner
+        mentions = [owner.mention]
+        for role_id in admin_roles:
+            role = interaction.guild.get_role(int(role_id))
+            if role:
+                mentions.append(role.mention)
+        
+        admin_embed = discord.Embed(
+            title="🔔 Notifikasi Pembayaran",
+            description=f"Buyer telah mengkonfirmasi pembayaran di Ticket #{ticket['ticket_number']:04d}",
+            color=discord.Color.blue(),
+            timestamp=datetime.now()
+        )
+        
+        admin_embed.add_field(
+            name="🎫 Ticket",
+            value=f"{interaction.channel.mention}",
+            inline=True
+        )
+        
+        admin_embed.add_field(
+            name="👤 Buyer",
+            value=f"{interaction.user.mention}",
+            inline=True
+        )
+        
+        admin_embed.add_field(
+            name="📸 Bukti",
+            value=f"[Lihat Bukti]({proof.url})",
+            inline=True
+        )
+        
+        if message:
+            admin_embed.add_field(
+                name="💬 Pesan Buyer",
+                value=f"`{message}`",
+                inline=False
+            )
+        
+        admin_embed.set_footer(text="Admin: Verifikasi bukti transfer dan proses pesanan")
+        
+        # Kirim ke admin (ephemeral untuk user)
+        await interaction.followup.send(
+            f"✅ **Pembayaran berhasil dikonfirmasi!**\n\n"
+            f"📸 Bukti transfer telah dikirim ke admin\n"
+            f"⏳ Menunggu verifikasi dari admin\n\n"
+            f"{' '.join(mentions)} - Buyer sudah transfer!",
+            ephemeral=True
+        )
+        
+        # Kirim notifikasi ke admin di channel yang sama
+        await interaction.channel.send(f"{' '.join(mentions)}", embed=admin_embed)
+        
+        # Log action
+        db.log_action(
+            guild_id=interaction.guild.id,
+            user_id=interaction.user.id,
+            action="confirm_payment",
+            details=f"Ticket #{ticket['ticket_number']:04d} - Proof: {proof.url}"
+        )
+        
+    except Exception as e:
+        await interaction.followup.send(f"❌ Error: {e}", ephemeral=True)
+
+
 # --- Jalankan Bot ---
 if __name__ == '__main__':
     @client.event
