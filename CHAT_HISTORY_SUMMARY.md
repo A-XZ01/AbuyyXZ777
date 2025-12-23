@@ -18,12 +18,12 @@
   - Tidak ada nested asyncio.run()
   - Health check pass 100%
 
-### **✅ Command Updated (v3 - Final):**
-- ✅ **Simplified `/confirm-payment` command** - No parameters needed
-  - Removed amount and notes parameters for simplicity
-  - Admin just types `/confirm-payment` to approve
-  - Auto-calculates and shows total from ticket items
-  - Removed all /done references from embeds and messages
+### **✅ Command Updated (v4 - Robust):**
+- ✅ **Added robust error handling** for `/confirm-payment`
+  - Checks if ticket has items (buyer must use `/add` first)
+  - Validates Robux rate is set (`/set-rate`)
+  - Detailed error messages with troubleshooting steps
+  - Debug info for admins
 
 ### **Current Active Commands: 27 slash commands**
 
