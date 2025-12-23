@@ -5024,59 +5024,75 @@ async def confirm_payment(interaction: discord.Interaction, proof: discord.Attac
 
 # --- Simple HTTP Server untuk Health Check ---
 from aiohttp import web
+import threading
+
+health_app = None
 
 async def health_check(request):
     """Health check endpoint untuk DigitalOcean App Platform"""
     return web.Response(text="OK", status=200)
 
-async def create_health_server():
-    """Buat simple HTTP server untuk health check"""
-    app = web.Application()
-    app.router.add_get('/health', health_check)
+def run_health_server():
+    """Run health server in separate thread"""
+    global health_app
     
-    # Get port from environment, default to 8080
-    port = int(os.environ.get('PORT', 8080))
+    async def start_server():
+        health_app = web.Application()
+        health_app.router.add_get('/health', health_check)
+        
+        # Get port from environment, default to 8080
+        port = int(os.environ.get('PORT', 8080))
+        
+        runner = web.AppRunner(health_app)
+        await runner.setup()
+        site = web.TCPSite(runner, '0.0.0.0', port)
+        await site.start()
+        print(f"🌐 Health check server started on port {port}")
+        
+        # Keep server running
+        while True:
+            await asyncio.sleep(1)
     
-    runner = web.AppRunner(app)
-    await runner.setup()
-    site = web.TCPSite(runner, '0.0.0.0', port)
-    await site.start()
-    print(f"🌐 Health check server started on port {port}")
-    
-    return runner
+    # Run in new event loop
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.run_until_complete(start_server())
 
 # --- Jalankan Bot ---
 if __name__ == '__main__':
-    async def main():
-        # Start health check server terlebih dahulu
-        print("🌐 Starting health check server...")
-        try:
-            health_runner = await create_health_server()
-            print("✅ Health check server started successfully")
-        except Exception as e:
-            print(f"❌ Failed to start health server: {e}")
-            return
-        
-        # Jalankan bot Discord
-        try:
-            client.run(TOKEN)
-        except discord.LoginFailure:
-            print("❌ ERROR: Token bot tidak valid. Cek kembali token di file .env.")
-            try:
-                import asyncio
-                asyncio.run(send_log_message(client, "❌ ERROR: Token bot tidak valid. Cek kembali token di file .env."))
-            except Exception:
-                pass
-        except Exception as e:
-            import traceback
-            error_text = f"❌ ERROR: Terjadi kesalahan saat menjalankan bot: {e}\n{traceback.format_exc()}"
-            print(error_text)
-            try:
-                import asyncio
-                asyncio.run(send_log_message(client, error_text))
-            except Exception:
-                pass
+    # Start health check server in separate thread
+    print("🌐 Starting health check server...")
+    health_thread = threading.Thread(target=run_health_server, daemon=True)
+    health_thread.start()
     
-    # Jalankan main function
-    asyncio.run(main())
+    # Give health server time to start
+    import time
+    time.sleep(1)
+    print("✅ Health check server started successfully")
+    
+    @client.event
+    async def on_ready():
+        try:
+            await send_log_message(client, f"✅ Bot berhasil di-restart dan online! (PID: {os.getpid()})")
+        except Exception:
+            pass
+
+    try:
+        client.run(TOKEN)
+    except discord.LoginFailure:
+        print("❌ ERROR: Token bot tidak valid. Cek kembali token di file .env.")
+        try:
+            import asyncio
+            asyncio.run(send_log_message(client, "❌ ERROR: Token bot tidak valid. Cek kembali token di file .env."))
+        except Exception:
+            pass
+    except Exception as e:
+        import traceback
+        error_text = f"❌ ERROR: Terjadi kesalahan saat menjalankan bot: {e}\n{traceback.format_exc()}"
+        print(error_text)
+        try:
+            import asyncio
+            asyncio.run(send_log_message(client, error_text))
+        except Exception:
+            pass
 
