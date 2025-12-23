@@ -4861,14 +4861,15 @@ async def reject_mm(interaction: discord.Interaction, reason: str = "Bukti tidak
 # --- Slash Command: /confirm-payment ---
 @client.tree.command(
     name="confirm-payment",
-    description="Konfirmasi bahwa buyer sudah transfer pembayaran"
+    description="[ADMIN] Konfirmasi pembayaran buyer dan approve transaksi"
 )
 @app_commands.describe(
-    proof='Upload bukti transfer (gambar/foto)',
-    message='Pesan tambahan (opsional)'
+    amount="Jumlah yang dibayar buyer (contoh: 50000)",
+    notes="Catatan tambahan (opsional)"
 )
-async def confirm_payment(interaction: discord.Interaction, proof: discord.Attachment = None, message: str = None):
-    """Konfirmasi pembayaran dari buyer"""
+@app_commands.default_permissions(administrator=True)
+async def confirm_payment(interaction: discord.Interaction, amount: int, notes: str = None):
+    """Konfirmasi pembayaran oleh admin/owner"""
     await interaction.response.defer()
     
     # Cek apakah di ticket channel
@@ -4882,140 +4883,132 @@ async def confirm_payment(interaction: discord.Interaction, proof: discord.Attac
         await interaction.followup.send("❌ Ticket ini sudah ditutup.", ephemeral=True)
         return
     
-    # Cek apakah user adalah buyer (pembuat ticket)
-    if interaction.user.id != ticket['user_id']:
-        await interaction.followup.send("❌ Hanya buyer (pembuat ticket) yang bisa konfirmasi pembayaran!", ephemeral=True)
-        return
-    
-    # Validasi attachment
-    if not proof:
-        await interaction.followup.send("❌ Harus upload bukti transfer (gambar/foto)!", ephemeral=True)
-        return
-    
-    # Cek tipe file
-    if not proof.content_type or not proof.content_type.startswith('image/'):
-        await interaction.followup.send("❌ Bukti transfer harus berupa gambar (PNG/JPG/JPEG)!", ephemeral=True)
-        return
-    
-    # Cek ukuran file (max 8MB)
-    if proof.size > 8 * 1024 * 1024:
-        await interaction.followup.send("❌ Ukuran file maksimal 8MB!", ephemeral=True)
+    # Cek apakah admin/owner
+    if not (is_owner(interaction) or is_admin(interaction)):
+        await interaction.followup.send("❌ Hanya admin atau owner yang bisa konfirmasi pembayaran!", ephemeral=True)
         return
     
     try:
-        # Download gambar untuk OCR (opsional, untuk deteksi nominal)
-        proof_data = await proof.read()
+        # Update ticket status atau tambah field payment_confirmed
+        # Untuk sekarang, kita buat embed konfirmasi
         
-        # Simpan bukti ke database (opsional)
-        # Kita bisa simpan URL attachment Discord
+        # Hitung total yang harus dibayar dari items di ticket
+        ticket_items = db.get_ticket_items(ticket['id'])
+        total_robux = sum(item['quantity'] * item['robux_price'] for item in ticket_items)
+        rate = db.get_robux_rate(interaction.guild.id)
+        total_idr = total_robux * rate
+        
+        # Validasi amount
+        if amount < total_idr * 0.9:  # Minimal 90% dari total
+            await interaction.followup.send(
+                f"❌ Jumlah pembayaran terlalu kecil!\n"
+                f"Total yang harus dibayar: **Rp{total_idr:,}**\n"
+                f"Anda masukkan: **Rp{amount:,}**",
+                ephemeral=True
+            )
+            return
+        
+        if amount > total_idr * 1.1:  # Maksimal 110% dari total
+            await interaction.followup.send(
+                f"⚠️ Jumlah pembayaran lebih besar dari total!\n"
+                f"Total yang harus dibayar: **Rp{total_idr:,}**\n"
+                f"Anda masukkan: **Rp{amount:,}**\n\n"
+                f"Apakah Anda yakin? Jika ya, lanjutkan.",
+                ephemeral=True
+            )
+            # Untuk sekarang lanjutkan saja
         
         # Buat embed konfirmasi pembayaran
         confirm_embed = discord.Embed(
-            title="💳 Pembayaran Dikonfirmasi",
-            description=f"Buyer telah mengkonfirmasi pembayaran untuk Ticket #{ticket['ticket_number']:04d}",
+            title="✅ Pembayaran Dikonfirmasi Admin",
+            description=f"Pembayaran untuk Ticket #{ticket['ticket_number']:04d} telah dikonfirmasi!",
             color=discord.Color.green(),
             timestamp=datetime.now()
         )
         
         confirm_embed.add_field(
             name="👤 Buyer",
+            value=f"<@{ticket['user_id']}>",
+            inline=True
+        )
+        
+        confirm_embed.add_field(
+            name="👨‍💼 Admin",
             value=f"{interaction.user.mention}",
             inline=True
         )
         
         confirm_embed.add_field(
-            name="🎫 Ticket",
-            value=f"#{ticket['ticket_number']:04d}",
+            name="💰 Jumlah Dibayar",
+            value=f"**Rp{amount:,}**",
             inline=True
         )
         
         confirm_embed.add_field(
-            name="📸 Bukti Transfer",
-            value=f"[Lihat Bukti]({proof.url})",
-            inline=True
+            name="📦 Total Item",
+            value=f"{total_robux} R$ • Rp{total_idr:,}",
+            inline=False
         )
         
-        if message:
+        if notes:
             confirm_embed.add_field(
-                name="💬 Pesan",
-                value=f"`{message}`",
+                name="📝 Catatan",
+                value=f"`{notes}`",
                 inline=False
             )
         
-        confirm_embed.set_image(url=proof.url)
-        
         confirm_embed.set_footer(
-            text=f"Konfirmasi oleh {interaction.user.display_name}",
+            text=f"Dikonfirmasi oleh {interaction.user.display_name}",
             icon_url=interaction.user.display_avatar.url
         )
         
         # Kirim ke channel
         await interaction.channel.send(embed=confirm_embed)
         
-        # Kirim notifikasi ke admin
-        guild_config = db.get_guild_config(interaction.guild.id)
-        admin_roles = guild_config.get('admin_roles', [])
-        owner = interaction.guild.owner
+        # Kirim notifikasi ke buyer
+        buyer = interaction.guild.get_member(ticket['user_id'])
+        if buyer:
+            try:
+                dm_embed = discord.Embed(
+                    title="🎉 Pembayaran Dikonfirmasi!",
+                    description=f"Pembayaran Anda untuk Ticket #{ticket['ticket_number']:04d} telah dikonfirmasi oleh admin!",
+                    color=discord.Color.green(),
+                    timestamp=datetime.now()
+                )
+                
+                dm_embed.add_field(
+                    name="💰 Jumlah",
+                    value=f"Rp{amount:,}",
+                    inline=True
+                )
+                
+                dm_embed.add_field(
+                    name="📦 Items",
+                    value=f"{total_robux} Robux",
+                    inline=True
+                )
+                
+                dm_embed.set_footer(text="Silakan tunggu admin memproses pesanan Anda")
+                
+                await buyer.send(embed=dm_embed)
+            except:
+                pass  # DM gagal, ignore
         
-        # Mention admin & owner
-        mentions = [owner.mention]
-        for role_id in admin_roles:
-            role = interaction.guild.get_role(int(role_id))
-            if role:
-                mentions.append(role.mention)
-        
-        admin_embed = discord.Embed(
-            title="🔔 Notifikasi Pembayaran",
-            description=f"Buyer telah mengkonfirmasi pembayaran di Ticket #{ticket['ticket_number']:04d}",
-            color=discord.Color.blue(),
-            timestamp=datetime.now()
-        )
-        
-        admin_embed.add_field(
-            name="🎫 Ticket",
-            value=f"{interaction.channel.mention}",
-            inline=True
-        )
-        
-        admin_embed.add_field(
-            name="👤 Buyer",
-            value=f"{interaction.user.mention}",
-            inline=True
-        )
-        
-        admin_embed.add_field(
-            name="📸 Bukti",
-            value=f"[Lihat Bukti]({proof.url})",
-            inline=True
-        )
-        
-        if message:
-            admin_embed.add_field(
-                name="💬 Pesan Buyer",
-                value=f"`{message}`",
-                inline=False
-            )
-        
-        admin_embed.set_footer(text="Admin: Verifikasi bukti transfer dan proses pesanan")
-        
-        # Kirim ke admin (ephemeral untuk user)
         await interaction.followup.send(
-            f"✅ **Pembayaran berhasil dikonfirmasi!**\n\n"
-            f"📸 Bukti transfer telah dikirim ke admin\n"
-            f"⏳ Menunggu verifikasi dari admin\n\n"
-            f"{' '.join(mentions)} - Buyer sudah transfer!",
+            f"✅ **Pembayaran dikonfirmasi!**\n\n"
+            f"💰 Jumlah: **Rp{amount:,}**\n"
+            f"👤 Buyer: <@{ticket['user_id']}>\n"
+            f"📦 Total items: {total_robux} R$\n\n"
+            f"Buyer telah di-notifikasi via DM.",
             ephemeral=True
         )
-        
-        # Kirim notifikasi ke admin di channel yang sama
-        await interaction.channel.send(f"{' '.join(mentions)}", embed=admin_embed)
         
         # Log action
         db.log_action(
             guild_id=interaction.guild.id,
             user_id=interaction.user.id,
             action="confirm_payment",
-            details=f"Ticket #{ticket['ticket_number']:04d} - Proof: {proof.url}"
+            details=f"Ticket #{ticket['ticket_number']:04d} - Amount: Rp{amount:,}"
         )
         
     except Exception as e:

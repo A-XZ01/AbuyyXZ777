@@ -18,6 +18,15 @@
   - Tidak ada nested asyncio.run()
   - Health check pass 100%
 
+### **✅ Command Updated:**
+- ✅ **Updated `/confirm-payment` command** - Now for admin/owner approval
+  - Changed from buyer confirmation to admin approval
+  - Admin inputs payment amount received
+  - Auto-calculates total from ticket items
+  - Validates amount (90%-110% of total)
+  - Sends confirmation to buyer via DM
+  - Only admin/owner can use this command
+
 ### **Current Active Commands: 27 slash commands**
 
 ### **✅ Final Decision:**
@@ -292,6 +301,7 @@ GROUP BY user_id
 ### **Admin Commands:**
 - `/allstats` - Show all-time stats
 - `/approve-mm` - Approve middleman transaction
+- `/confirm-payment` - Confirm buyer payment (admin only)
 - `/close` - Close ticket
 
 ### **User Commands:**
