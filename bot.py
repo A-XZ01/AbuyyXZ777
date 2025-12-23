@@ -4916,7 +4916,7 @@ async def confirm_payment(interaction: discord.Interaction):
         else:
             estimated_robux = 0
         
-        total_idr = total_robux * rate
+        # total_robux is not needed, use estimated_robux and total_idr only
         
         # Buat embed konfirmasi pembayaran
         confirm_embed = discord.Embed(
@@ -4962,21 +4962,17 @@ async def confirm_payment(interaction: discord.Interaction):
                     color=discord.Color.green(),
                     timestamp=datetime.now()
                 )
-                
                 dm_embed.add_field(
                     name="📦 Items",
                     value=f"~{estimated_robux} Robux",
                     inline=True
                 )
-                
                 dm_embed.add_field(
                     name="💰 Total",
                     value=f"Rp{total_idr:,}",
                     inline=True
                 )
-                
                 dm_embed.set_footer(text="Silakan tunggu admin memproses pesanan Anda")
-                
                 await buyer.send(embed=dm_embed)
             except:
                 pass  # DM gagal, ignore
@@ -4984,7 +4980,7 @@ async def confirm_payment(interaction: discord.Interaction):
         await interaction.followup.send(
             f"✅ **Pembayaran dikonfirmasi!**\n\n"
             f"👤 Buyer: <@{ticket['user_id']}>\n"
-            f"📦 Total items: {total_robux} R$\n"
+            f"📦 Total items: ~{estimated_robux} R$\n"
             f"💰 Total: Rp{total_idr:,}\n\n"
             f"Buyer telah di-notifikasi via DM.",
             ephemeral=True
