@@ -18,12 +18,12 @@
   - Tidak ada nested asyncio.run()
   - Health check pass 100%
 
-### **✅ Command Updated (v4 - Robust):**
-- ✅ **Added robust error handling** for `/confirm-payment`
-  - Checks if ticket has items (buyer must use `/add` first)
-  - Validates Robux rate is set (`/set-rate`)
-  - Detailed error messages with troubleshooting steps
-  - Debug info for admins
+### **✅ Command Fixed (v5 - Database):**
+- ✅ **Fixed database field access** in `/confirm-payment`
+  - Corrected from `item['quantity']` to `item['amount']`
+  - Added proper lookup of Robux prices from item catalog
+  - Fixed total calculation logic
+  - Updated error messages for buyer workflow (select menu, not /add)
 
 ### **Current Active Commands: 27 slash commands**
 
