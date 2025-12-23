@@ -18,14 +18,12 @@
   - Tidak ada nested asyncio.run()
   - Health check pass 100%
 
-### **✅ Command Updated:**
-- ✅ **Updated `/confirm-payment` command** - Now for admin/owner approval
-  - Changed from buyer confirmation to admin approval
-  - Admin inputs payment amount received
-  - Auto-calculates total from ticket items
-  - Validates amount (90%-110% of total)
-  - Sends confirmation to buyer via DM
-  - Only admin/owner can use this command
+### **✅ Command Updated (v2):**
+- ✅ **Updated `/confirm-payment` validation** - More flexible amount checking
+  - Removed strict 90% minimum validation that was causing errors
+  - Now only warns if amount < 50% or > 200% of total
+  - Shows selisih (difference) in embed if > Rp1000
+  - Admin can input exact transfer amount without errors
 
 ### **Current Active Commands: 27 slash commands**
 
