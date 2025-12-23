@@ -4897,39 +4897,24 @@ async def confirm_payment(interaction: discord.Interaction):
             )
             return
         
-        total_robux = 0
-        total_idr = 0
+        # Hitung total dari ticket_items (amount = total harga IDR per item group)
+        total_idr = sum(item['amount'] for item in ticket_items)
         
-        for item in ticket_items:
-            # Cari price dari item_prices berdasarkan item_name
-            item_price_data = db.get_item_price(interaction.guild.id, item['item_name'])
-            if item_price_data:
-                robux_price = item_price_data['base_robux']
-                item_total_robux = item['amount'] * robux_price
-                total_robux += item_total_robux
-        
-        if total_robux == 0:
+        if total_idr == 0:
             await interaction.followup.send(
-                "⚠️ **Tidak dapat menghitung total!**\n\n"
-                "Beberapa item di ticket tidak ditemukan di katalog harga.\n"
-                "Harap pastikan semua item sudah ditambahkan ke katalog dengan `/add-item`.\n\n"
+                "⚠️ **Total pembayaran Rp0!**\n\n"
+                "Ticket ini tidak memiliki item dengan harga valid.\n"
                 "Konfirmasi pembayaran dibatalkan.",
                 ephemeral=True
             )
             return
         
+        # Hitung estimasi Robux (untuk display)
         rate = db.get_robux_rate(interaction.guild.id)
-        
-        if rate <= 0:
-            await interaction.followup.send(
-                f"❌ **Error: Rate Robux tidak valid!**\n\n"
-                f"Rate saat ini: Rp{rate}/Robux. Harap set rate dengan `/set-rate`.\n\n"
-                "Konfirmasi pembayaran dibatalkan.",
-                ephemeral=True
-            )
-            return
-        
-        total_idr = total_robux * rate
+        if rate > 0:
+            estimated_robux = int(total_idr / rate)
+        else:
+            estimated_robux = 0
         
         total_idr = total_robux * rate
         
@@ -4955,7 +4940,7 @@ async def confirm_payment(interaction: discord.Interaction):
         
         confirm_embed.add_field(
             name="📦 Total Item",
-            value=f"{total_robux} R$ • Rp{total_idr:,}",
+            value=f"~{estimated_robux} R$ • Rp{total_idr:,}",
             inline=False
         )
         
@@ -4980,7 +4965,7 @@ async def confirm_payment(interaction: discord.Interaction):
                 
                 dm_embed.add_field(
                     name="📦 Items",
-                    value=f"{total_robux} Robux",
+                    value=f"~{estimated_robux} Robux",
                     inline=True
                 )
                 
