@@ -4887,8 +4887,28 @@ async def confirm_payment(interaction: discord.Interaction):
     try:
         # Hitung total yang harus dibayar dari items di ticket
         ticket_items = db.get_ticket_items(ticket['id'])
+        
+        if not ticket_items:
+            await interaction.followup.send(
+                "⚠️ **Ticket ini belum ada item yang ditambahkan!**\n\n"
+                "Buyer belum order apapun. Mungkin buyer lupa pakai `/add` untuk tambah item.\n\n"
+                "Konfirmasi pembayaran dibatalkan.",
+                ephemeral=True
+            )
+            return
+        
         total_robux = sum(item['quantity'] * item['robux_price'] for item in ticket_items)
         rate = db.get_robux_rate(interaction.guild.id)
+        
+        if rate <= 0:
+            await interaction.followup.send(
+                f"❌ **Error: Rate Robux tidak valid!**\n\n"
+                f"Rate saat ini: Rp{rate}/Robux. Harap set rate dengan `/set-rate`.\n\n"
+                "Konfirmasi pembayaran dibatalkan.",
+                ephemeral=True
+            )
+            return
+        
         total_idr = total_robux * rate
         
         # Buat embed konfirmasi pembayaran
@@ -4972,7 +4992,19 @@ async def confirm_payment(interaction: discord.Interaction):
         )
         
     except Exception as e:
-        await interaction.followup.send(f"❌ Error: {e}", ephemeral=True)
+        error_msg = f"❌ **Error saat konfirmasi pembayaran:** {str(e)}\n\n"
+        error_msg += "**Mohon cek:**\n"
+        error_msg += "• Apakah ticket memiliki items? (buyer pakai `/add`)\n"
+        error_msg += "• Apakah rate Robux sudah di-set? (`/set-rate`)\n"
+        error_msg += "• Apakah database connection OK?\n\n"
+        error_msg += "**Debug info:**\n"
+        error_msg += f"Ticket ID: {ticket['id']}\n"
+        error_msg += f"Guild ID: {interaction.guild.id}"
+        
+        await interaction.followup.send(error_msg, ephemeral=True)
+        print(f"[ERROR] confirm_payment: {e}")
+        import traceback
+        print(traceback.format_exc())
 
 
 # --- Simple HTTP Server untuk Health Check ---
