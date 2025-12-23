@@ -2107,42 +2107,7 @@ class MyClient(discord.Client):
         except Exception:
             return
 
-        # Update stats untuk author menggunakan database
-        updated = db.update_user_stats(message.guild.id, message.author.id, amount)
-        db.add_transaction(message.guild.id, message.author.id, amount, category="auto_detect", notes=f"Auto-detected from message", recorded_by=None)
-        
-        # Cek achievement baru
-        new_achievements = db.check_and_unlock_achievement(message.guild.id, message.author.id)
-        
-        # Log activity
-        db.log_action(message.guild.id, message.author.id, "auto_detect_transaction", f"Amount: {amount}")
-
-        # Kirim konfirmasi
-        try:
-            msg = (
-                f"✅ Statistik untuk **{message.author.display_name}** diperbarui: "
-                f"Total Transaksi: **{updated.get('deals_completed',0)}**, "
-                f"Total IDR: **{format_idr(updated.get('total_idr_value',0))}**"
-            )
-            
-            # Tambahkan achievement baru jika ada
-            if new_achievements:
-                achievement_names = {
-                    'deals_10': '🎯 10 Transaksi',
-                    'deals_50': '🔥 50 Transaksi',
-                    'deals_100': '⭐ 100 Transaksi',
-                    'deals_500': '💎 500 Transaksi',
-                    'value_1m': '💰 Rp1 Juta',
-                    'value_5m': '💸 Rp5 Juta',
-                    'value_10m': '🏆 Rp10 Juta',
-                    'value_50m': '👑 Rp50 Juta',
-                }
-                achievement_text = ", ".join([achievement_names.get(a, a) for a in new_achievements])
-                msg += f"\n🎉 **Achievement Baru Unlocked!** {achievement_text}"
-            
-            await message.channel.send(msg)
-        except Exception:
-            pass
+        # Nonaktifkan auto-update stats di #cmd-bot. Semua update stats hanya lewat /confirm-payment.
     
     async def process_proof_submission(self, message: discord.Message, ticket: dict, proof_url: str, proof_type: str = 'buyer'):
         """Process auto-detected proof submission from image upload
