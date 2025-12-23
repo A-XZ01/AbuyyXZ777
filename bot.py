@@ -2486,7 +2486,7 @@ class MyClient(discord.Client):
             
             submit_embed.add_field(
                 name="⚙️ Admin Panel",
-                value="✅ `/done` — Setujui transaksi\n❌ `/reject-ticket` — Tolak transaksi",
+                value="✅ `/confirm-payment` — Setujui pembayaran\n❌ `/reject-ticket` — Tolak transaksi",
                 inline=False
             )
             
@@ -2522,7 +2522,7 @@ class MyClient(discord.Client):
             
             # Determine command based on ticket type
             is_middleman = ticket.get('ticket_type') == 'middleman'
-            approve_cmd = "/approve-mm" if is_middleman else "/done"
+            approve_cmd = "/approve-mm" if is_middleman else "/confirm-payment"
             reject_cmd = "/reject-mm" if is_middleman else "/reject-ticket"
             
             # SEND dengan TAG ADMIN & OWNER
@@ -3744,7 +3744,7 @@ async def list_admins(interaction: discord.Interaction):
         embed.add_field(
             name="✅ Admin Dapat:",
             value=(
-                "• `/done` - Setujui transaksi\n"
+                "• `/confirm-payment` - Setujui transaksi\n"
                 "• `/reject-ticket` - Reject transaksi\n"
                 "• `/ticket-stats` - Lihat statistik ticket\n"
                 "• `/user-info` - Info detail user\n"
@@ -3830,7 +3830,7 @@ async def permissions(interaction: discord.Interaction):
                 name="✅ Admin Commands:",
                 value=(
                     "**Ticket Management:**\n"
-                    "• `/done` - Approve transactions\n"
+                    "• `/confirm-payment` - Approve transactions\n"
                     "• `/reject-ticket` - Reject transactions\n\n"
                     "**User Management:**\n"
                     "• `/addrole` - Give role to user\n"
@@ -4642,7 +4642,7 @@ async def approve_mm(interaction: discord.Interaction):
             return
         
         if ticket.get('ticket_type') != 'middleman':
-            await interaction.response.send_message("❌ Ini bukan middleman ticket. Gunakan `/done` untuk ticket purchase.", ephemeral=True)
+            await interaction.response.send_message("❌ Ini bukan middleman ticket. Gunakan `/confirm-payment` untuk ticket purchase.", ephemeral=True)
             return
         
         if ticket['status'] != 'open':
@@ -4861,14 +4861,10 @@ async def reject_mm(interaction: discord.Interaction, reason: str = "Bukti tidak
 # --- Slash Command: /confirm-payment ---
 @client.tree.command(
     name="confirm-payment",
-    description="[ADMIN] Konfirmasi pembayaran buyer dan approve transaksi"
-)
-@app_commands.describe(
-    amount="Jumlah yang dibayar buyer (contoh: 50000)",
-    notes="Catatan tambahan (opsional)"
+    description="[ADMIN] Konfirmasi pembayaran buyer telah diterima"
 )
 @app_commands.default_permissions(administrator=True)
-async def confirm_payment(interaction: discord.Interaction, amount: int, notes: str = None):
+async def confirm_payment(interaction: discord.Interaction):
     """Konfirmasi pembayaran oleh admin/owner"""
     await interaction.response.defer()
     
@@ -4889,43 +4885,11 @@ async def confirm_payment(interaction: discord.Interaction, amount: int, notes: 
         return
     
     try:
-        # Update ticket status atau tambah field payment_confirmed
-        # Untuk sekarang, kita buat embed konfirmasi
-        
         # Hitung total yang harus dibayar dari items di ticket
         ticket_items = db.get_ticket_items(ticket['id'])
         total_robux = sum(item['quantity'] * item['robux_price'] for item in ticket_items)
         rate = db.get_robux_rate(interaction.guild.id)
         total_idr = total_robux * rate
-        
-        # Info total untuk referensi (tidak wajib match)
-        total_info = f"Total items: {total_robux} R$ • Rp{total_idr:,}"
-        
-        # Validasi amount - lebih fleksibel
-        if amount <= 0:
-            await interaction.followup.send("❌ Jumlah pembayaran harus lebih dari 0!", ephemeral=True)
-            return
-        
-        # Peringatan jika amount berbeda signifikan dari total
-        if amount < total_idr * 0.5:  # Jika kurang dari 50%, beri peringatan
-            await interaction.followup.send(
-                f"⚠️ **PERINGATAN:** Jumlah yang dimasukkan jauh lebih kecil dari total!\n"
-                f"Total yang harus dibayar: **Rp{total_idr:,}**\n"
-                f"Anda masukkan: **Rp{amount:,}**\n\n"
-                f"Apakah ini benar? Jika ya, lanjutkan dengan command yang sama.",
-                ephemeral=True
-            )
-            return
-        
-        if amount > total_idr * 2.0:  # Jika lebih dari 2x, beri peringatan
-            await interaction.followup.send(
-                f"⚠️ **PERINGATAN:** Jumlah yang dimasukkan jauh lebih besar dari total!\n"
-                f"Total yang harus dibayar: **Rp{total_idr:,}**\n"
-                f"Anda masukkan: **Rp{amount:,}**\n\n"
-                f"Apakah ini benar? Jika ya, lanjutkan dengan command yang sama.",
-                ephemeral=True
-            )
-            return
         
         # Buat embed konfirmasi pembayaran
         confirm_embed = discord.Embed(
@@ -4948,33 +4912,10 @@ async def confirm_payment(interaction: discord.Interaction, amount: int, notes: 
         )
         
         confirm_embed.add_field(
-            name="💰 Jumlah Dibayar",
-            value=f"**Rp{amount:,}**",
-            inline=True
-        )
-        
-        confirm_embed.add_field(
             name="📦 Total Item",
             value=f"{total_robux} R$ • Rp{total_idr:,}",
-            inline=True
+            inline=False
         )
-        
-        # Show selisih jika ada
-        if abs(amount - total_idr) > 1000:  # Selisih > Rp1000
-            selisih = amount - total_idr
-            selisih_text = f"{'+' if selisih > 0 else ''}{selisih:,}"
-            confirm_embed.add_field(
-                name="⚖️ Selisih",
-                value=f"Rp{selisih_text}",
-                inline=True
-            )
-        
-        if notes:
-            confirm_embed.add_field(
-                name="📝 Catatan",
-                value=f"`{notes}`",
-                inline=False
-            )
         
         confirm_embed.set_footer(
             text=f"Dikonfirmasi oleh {interaction.user.display_name}",
@@ -4996,14 +4937,14 @@ async def confirm_payment(interaction: discord.Interaction, amount: int, notes: 
                 )
                 
                 dm_embed.add_field(
-                    name="💰 Jumlah",
-                    value=f"Rp{amount:,}",
+                    name="📦 Items",
+                    value=f"{total_robux} Robux",
                     inline=True
                 )
                 
                 dm_embed.add_field(
-                    name="📦 Items",
-                    value=f"{total_robux} Robux",
+                    name="💰 Total",
+                    value=f"Rp{total_idr:,}",
                     inline=True
                 )
                 
@@ -5015,9 +4956,9 @@ async def confirm_payment(interaction: discord.Interaction, amount: int, notes: 
         
         await interaction.followup.send(
             f"✅ **Pembayaran dikonfirmasi!**\n\n"
-            f"💰 Jumlah: **Rp{amount:,}**\n"
             f"👤 Buyer: <@{ticket['user_id']}>\n"
-            f"📦 Total items: {total_robux} R$\n\n"
+            f"📦 Total items: {total_robux} R$\n"
+            f"💰 Total: Rp{total_idr:,}\n\n"
             f"Buyer telah di-notifikasi via DM.",
             ephemeral=True
         )
@@ -5027,7 +4968,7 @@ async def confirm_payment(interaction: discord.Interaction, amount: int, notes: 
             guild_id=interaction.guild.id,
             user_id=interaction.user.id,
             action="confirm_payment",
-            details=f"Ticket #{ticket['ticket_number']:04d} - Amount: Rp{amount:,}"
+            details=f"Ticket #{ticket['ticket_number']:04d} - Total: Rp{total_idr:,}"
         )
         
     except Exception as e:
