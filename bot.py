@@ -4891,13 +4891,33 @@ async def confirm_payment(interaction: discord.Interaction):
         if not ticket_items:
             await interaction.followup.send(
                 "⚠️ **Ticket ini belum ada item yang ditambahkan!**\n\n"
-                "Buyer belum order apapun. Mungkin buyer lupa pakai `/add` untuk tambah item.\n\n"
+                "Buyer belum order apapun. Buyer harus pakai **select menu** di ticket channel untuk pilih dan tambah item.\n\n"
                 "Konfirmasi pembayaran dibatalkan.",
                 ephemeral=True
             )
             return
         
-        total_robux = sum(item['quantity'] * item['robux_price'] for item in ticket_items)
+        total_robux = 0
+        total_idr = 0
+        
+        for item in ticket_items:
+            # Cari price dari item_prices berdasarkan item_name
+            item_price_data = db.get_item_price(interaction.guild.id, item['item_name'])
+            if item_price_data:
+                robux_price = item_price_data['base_robux']
+                item_total_robux = item['amount'] * robux_price
+                total_robux += item_total_robux
+        
+        if total_robux == 0:
+            await interaction.followup.send(
+                "⚠️ **Tidak dapat menghitung total!**\n\n"
+                "Beberapa item di ticket tidak ditemukan di katalog harga.\n"
+                "Harap pastikan semua item sudah ditambahkan ke katalog dengan `/add-item`.\n\n"
+                "Konfirmasi pembayaran dibatalkan.",
+                ephemeral=True
+            )
+            return
+        
         rate = db.get_robux_rate(interaction.guild.id)
         
         if rate <= 0:
@@ -4908,6 +4928,8 @@ async def confirm_payment(interaction: discord.Interaction):
                 ephemeral=True
             )
             return
+        
+        total_idr = total_robux * rate
         
         total_idr = total_robux * rate
         
@@ -4994,8 +5016,9 @@ async def confirm_payment(interaction: discord.Interaction):
     except Exception as e:
         error_msg = f"❌ **Error saat konfirmasi pembayaran:** {str(e)}\n\n"
         error_msg += "**Mohon cek:**\n"
-        error_msg += "• Apakah ticket memiliki items? (buyer pakai `/add`)\n"
+        error_msg += "• Apakah ticket memiliki items? (buyer pakai select menu di ticket)\n"
         error_msg += "• Apakah rate Robux sudah di-set? (`/set-rate`)\n"
+        error_msg += "• Apakah semua item sudah ada di katalog? (`/add-item`)\n"
         error_msg += "• Apakah database connection OK?\n\n"
         error_msg += "**Debug info:**\n"
         error_msg += f"Ticket ID: {ticket['id']}\n"
