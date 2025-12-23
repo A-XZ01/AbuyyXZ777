@@ -1737,6 +1737,13 @@ class MyClient(discord.Client):
                 await guild.leave()
                 print(f"✅ [READY] Bot keluar dari server {guild.name}")
         print(f"[READY] Commands sudah di-sync di setup_hook")
+        
+        # Start health check server untuk DigitalOcean App Platform
+        try:
+            self.health_runner = await create_health_server()
+            print("🌐 Health check server started successfully")
+        except Exception as e:
+            print(f"❌ Failed to start health server: {e}")
     
     @tasks.loop(hours=24)
     async def auto_backup_task(self):
@@ -5021,6 +5028,29 @@ async def confirm_payment(interaction: discord.Interaction, proof: discord.Attac
     except Exception as e:
         await interaction.followup.send(f"❌ Error: {e}", ephemeral=True)
 
+
+# --- Simple HTTP Server untuk Health Check ---
+from aiohttp import web
+
+async def health_check(request):
+    """Health check endpoint untuk DigitalOcean App Platform"""
+    return web.Response(text="OK", status=200)
+
+async def create_health_server():
+    """Buat simple HTTP server untuk health check"""
+    app = web.Application()
+    app.router.add_get('/health', health_check)
+    
+    # Get port from environment, default to 8080
+    port = int(os.environ.get('PORT', 8080))
+    
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, '0.0.0.0', port)
+    await site.start()
+    print(f"🌐 Health check server started on port {port}")
+    
+    return runner
 
 # --- Jalankan Bot ---
 if __name__ == '__main__':

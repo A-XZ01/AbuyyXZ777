@@ -11,6 +11,8 @@ services:
       deploy_on_push: true
     run_command: python bot.py
     build_command: pip install -r requirements.txt
+    health_check:
+      http_path: /health
     envs:
       - key: DISCORD_BOT_TOKEN
         scope: RUN_AND_BUILD_TIME
