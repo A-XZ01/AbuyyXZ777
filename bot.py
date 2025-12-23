@@ -4898,25 +4898,34 @@ async def confirm_payment(interaction: discord.Interaction, amount: int, notes: 
         rate = db.get_robux_rate(interaction.guild.id)
         total_idr = total_robux * rate
         
-        # Validasi amount
-        if amount < total_idr * 0.9:  # Minimal 90% dari total
+        # Info total untuk referensi (tidak wajib match)
+        total_info = f"Total items: {total_robux} R$ • Rp{total_idr:,}"
+        
+        # Validasi amount - lebih fleksibel
+        if amount <= 0:
+            await interaction.followup.send("❌ Jumlah pembayaran harus lebih dari 0!", ephemeral=True)
+            return
+        
+        # Peringatan jika amount berbeda signifikan dari total
+        if amount < total_idr * 0.5:  # Jika kurang dari 50%, beri peringatan
             await interaction.followup.send(
-                f"❌ Jumlah pembayaran terlalu kecil!\n"
+                f"⚠️ **PERINGATAN:** Jumlah yang dimasukkan jauh lebih kecil dari total!\n"
                 f"Total yang harus dibayar: **Rp{total_idr:,}**\n"
-                f"Anda masukkan: **Rp{amount:,}**",
+                f"Anda masukkan: **Rp{amount:,}**\n\n"
+                f"Apakah ini benar? Jika ya, lanjutkan dengan command yang sama.",
                 ephemeral=True
             )
             return
         
-        if amount > total_idr * 1.1:  # Maksimal 110% dari total
+        if amount > total_idr * 2.0:  # Jika lebih dari 2x, beri peringatan
             await interaction.followup.send(
-                f"⚠️ Jumlah pembayaran lebih besar dari total!\n"
+                f"⚠️ **PERINGATAN:** Jumlah yang dimasukkan jauh lebih besar dari total!\n"
                 f"Total yang harus dibayar: **Rp{total_idr:,}**\n"
                 f"Anda masukkan: **Rp{amount:,}**\n\n"
-                f"Apakah Anda yakin? Jika ya, lanjutkan.",
+                f"Apakah ini benar? Jika ya, lanjutkan dengan command yang sama.",
                 ephemeral=True
             )
-            # Untuk sekarang lanjutkan saja
+            return
         
         # Buat embed konfirmasi pembayaran
         confirm_embed = discord.Embed(
@@ -4947,8 +4956,18 @@ async def confirm_payment(interaction: discord.Interaction, amount: int, notes: 
         confirm_embed.add_field(
             name="📦 Total Item",
             value=f"{total_robux} R$ • Rp{total_idr:,}",
-            inline=False
+            inline=True
         )
+        
+        # Show selisih jika ada
+        if abs(amount - total_idr) > 1000:  # Selisih > Rp1000
+            selisih = amount - total_idr
+            selisih_text = f"{'+' if selisih > 0 else ''}{selisih:,}"
+            confirm_embed.add_field(
+                name="⚖️ Selisih",
+                value=f"Rp{selisih_text}",
+                inline=True
+            )
         
         if notes:
             confirm_embed.add_field(
