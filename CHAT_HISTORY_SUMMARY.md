@@ -18,12 +18,12 @@
   - Tidak ada nested asyncio.run()
   - Health check pass 100%
 
-### **✅ Command Updated (v2):**
-- ✅ **Updated `/confirm-payment` validation** - More flexible amount checking
-  - Removed strict 90% minimum validation that was causing errors
-  - Now only warns if amount < 50% or > 200% of total
-  - Shows selisih (difference) in embed if > Rp1000
-  - Admin can input exact transfer amount without errors
+### **✅ Command Updated (v3 - Final):**
+- ✅ **Simplified `/confirm-payment` command** - No parameters needed
+  - Removed amount and notes parameters for simplicity
+  - Admin just types `/confirm-payment` to approve
+  - Auto-calculates and shows total from ticket items
+  - Removed all /done references from embeds and messages
 
 ### **Current Active Commands: 27 slash commands**
 
