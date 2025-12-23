@@ -11,11 +11,12 @@
 
 ## 🆕 UPDATE TERBARU (23 Desember 2025)
 
-### **✅ Health Check Fixed (v2):**
-- ✅ **Fixed startup timing** - Health server start sebelum bot Discord
-  - Pindah dari `on_ready()` ke `main()` function
-  - Health check sekarang pass sebelum bot fully ready
-  - Fixed "Readiness probe failed" error completely
+### **✅ Health Check Fixed (v3 - Final):**
+- ✅ **Fixed asyncio conflict** - Gunakan threading untuk health server
+  - Health server run di thread terpisah dengan event loop sendiri
+  - Bot Discord run di main thread
+  - Tidak ada nested asyncio.run()
+  - Health check pass 100%
 
 ### **Current Active Commands: 27 slash commands**
 
